@@ -13,4 +13,21 @@ describe('LocalStorageService', () => {
   it('should be created', () => {
     expect(service).toBeTruthy();
   });
+
+  it('getItem devuelve null si el valor guardado no es JSON valido', () => {
+    localStorage.setItem('corrupto', '{no es json');
+
+    expect(service.getItem('corrupto')).toBeNull();
+
+    localStorage.clear();
+  });
+
+  it('setItem no lanza si localStorage falla (p. ej. quota excedida)', () => {
+    const original = localStorage.setItem;
+    spyOn(localStorage, 'setItem').and.throwError('QuotaExceededError');
+
+    expect(() => service.setItem('grande', 'x')).not.toThrow();
+
+    localStorage.setItem = original;
+  });
 });
