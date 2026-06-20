@@ -50,7 +50,7 @@ export class FileUploaderComponent {
       this.uploadStatus = 'success'  //'error'
     };
 
-    reader.readAsText(this.file, 'ISO-8859-1');
+    reader.readAsText(this.file);
 
 
 
