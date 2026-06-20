@@ -15,7 +15,7 @@
         class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
       >
         <option value="">Selecciona un separador</option>
-        @for (delimiters of possibleDelimiters; track $index) {
+        @for (delimiters of csvHandlerService.possibleDelimiters(); track $index) {
         <option [value]="delimiters">
           {{ delimiters === "\t" ? "Tab" : delimiters }}
         </option>
@@ -36,7 +36,7 @@
         class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
       >
         <option value="">Selecciona un salto de línea</option>
-        @for (lineBreak of possibleLineBreaks; track $index) {
+        @for (lineBreak of csvHandlerService.possibleLineBreaks(); track $index) {
         <option [value]="lineBreak">
           {{
             lineBreak === "\n" ? "\\n" : lineBreak === "\r\n" ? "\\r\\n" : "\\r"

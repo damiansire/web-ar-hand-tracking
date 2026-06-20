@@ -10,9 +10,6 @@ import { CsvHandlerService } from '../../../../services/csv-handler';
 })
 export class DataHandleTableComponent {
   csvHandlerService = inject(CsvHandlerService);
-  fileContent = this.csvHandlerService.csvData();
-  possibleDelimiters = this.csvHandlerService.possibleDelimiters();
-  possibleLineBreaks = this.csvHandlerService.possibleLineBreaks();
   newColumnName: string = '';
   headers = [
     'testId',
