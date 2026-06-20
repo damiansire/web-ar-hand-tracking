@@ -52,6 +52,13 @@
   >
     Convertir a tabla
   </button>
+
+  <button
+    (click)="loadAnotherFile()"
+    class="inline-flex items-center px-4 py-2 ml-2 border border-gray-300 text-sm font-medium rounded-md shadow-sm text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+  >
+    Cargar otro archivo
+  </button>
   @if ( csvHandlerService.parsedData()?.length != 0) {
   <ng-container>
     <div class="mt-8 flex flex-col">

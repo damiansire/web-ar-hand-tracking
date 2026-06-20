@@ -69,6 +69,13 @@ export class CsvHandlerService {
     }
   }
 
+  reset(): void {
+    this.dataStorageSyncService.clearCurrentFile();
+    this.csvData.set(null);
+    this.parsedData.set(null);
+    this.selectedRows.set([]);
+  }
+
   toggleRowSelection(rowIndex: number): void {
     this.selectedRows.update((rows) => {
       const index = rows.indexOf(rowIndex);

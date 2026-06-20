@@ -18,4 +18,8 @@ export class DataStorageSyncService {
     return this.localStorageService.getItem("current-csv")
   }
 
+  clearCurrentFile(){
+    this.localStorageService.removeItem("current-csv")
+  }
+
 }

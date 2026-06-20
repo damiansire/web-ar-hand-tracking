@@ -28,4 +28,8 @@ export class DataHandleTableComponent {
   toggleRowSelection(rowIndex: number): void {
     this.csvHandlerService.toggleRowSelection(rowIndex)
   }
+
+  loadAnotherFile(): void {
+    this.csvHandlerService.reset()
+  }
 }

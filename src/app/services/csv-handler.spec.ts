@@ -138,6 +138,22 @@ describe('CsvHandlerService', () => {
     });
   });
 
+  describe('reset', () => {
+    it('limpia el csv, los datos parseados, la seleccion y el localStorage', () => {
+      service.setCsv('a,b\nc,d');
+      service.parseCSV();
+      service.toggleRowSelection(1);
+      localStorage.setItem('current-csv', JSON.stringify('a,b\nc,d'));
+
+      service.reset();
+
+      expect(service.csvData()).toBeNull();
+      expect(service.parsedData()).toBeNull();
+      expect(service.selectedRows()).toEqual([]);
+      expect(localStorage.getItem('current-csv')).toBeNull();
+    });
+  });
+
   describe('loadFromLocalStorage', () => {
     it('carga el csv guardado en localStorage', () => {
       localStorage.setItem('current-csv', JSON.stringify('x,y\n1,2'));
