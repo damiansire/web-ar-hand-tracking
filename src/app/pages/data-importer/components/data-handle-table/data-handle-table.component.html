@@ -10,7 +10,8 @@
       </label>
       <select
         id="delimiter"
-        [(ngModel)]="csvHandlerService.selectedDelimiter"
+        [ngModel]="csvHandlerService.selectedDelimiter()"
+        (ngModelChange)="csvHandlerService.selectedDelimiter.set($event)"
         class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
       >
         <option value="">Selecciona un separador</option>
@@ -30,7 +31,8 @@
       </label>
       <select
         id="linebreak"
-        [(ngModel)]="csvHandlerService.selectedLineBreak"
+        [ngModel]="csvHandlerService.selectedLineBreak()"
+        (ngModelChange)="csvHandlerService.selectedLineBreak.set($event)"
         class="mt-1 block w-full pl-3 pr-10 py-2 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm rounded-md"
       >
         <option value="">Selecciona un salto de línea</option>
