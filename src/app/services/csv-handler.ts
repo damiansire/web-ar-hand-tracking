@@ -57,7 +57,7 @@ export class CsvHandlerService {
   }
 
   parseCSV(): void {
-    if (!this.selectedDelimiter() || !this.selectedLineBreak )
+    if (!this.selectedDelimiter() || !this.selectedLineBreak() )
       return;
 
     const csvData = this.csvData();
