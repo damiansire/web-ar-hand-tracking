@@ -20,10 +20,10 @@ describe('AppComponent', () => {
     expect(app.title).toEqual('test-case-manager');
   });
 
-  it('should render title', () => {
+  it('renderiza el router-outlet', () => {
     const fixture = TestBed.createComponent(AppComponent);
     fixture.detectChanges();
     const compiled = fixture.nativeElement as HTMLElement;
-    expect(compiled.querySelector('h1')?.textContent).toContain('Hello, test-case-manager');
+    expect(compiled.querySelector('router-outlet')).not.toBeNull();
   });
 });
