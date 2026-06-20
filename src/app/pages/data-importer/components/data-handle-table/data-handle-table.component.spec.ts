@@ -20,4 +20,11 @@ describe('DataHandleTableComponent', () => {
   it('should create', () => {
     expect(component).toBeTruthy();
   });
+
+  it('muestra el select de delimitador con el estado inicial por defecto', () => {
+    const compiled = fixture.nativeElement as HTMLElement;
+    const delimiterSelect = compiled.querySelector('#delimiter');
+
+    expect(delimiterSelect).not.toBeNull();
+  });
 });
