@@ -51,7 +51,6 @@ export class CsvHandlerService {
 
   loadFromLocalStorage(){
     const currentFile = this.dataStorageSyncService.getCurrentFile();
-    debugger
     if(currentFile){
       this.csvData.set(currentFile);
     }
