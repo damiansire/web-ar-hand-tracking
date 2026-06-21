@@ -1,4 +1,4 @@
-import { Component, inject, OnInit } from '@angular/core';
+import { Component, computed, inject, OnInit } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CsvHandlerService } from '../../../../services/csv-handler';
 
@@ -11,15 +11,9 @@ import { CsvHandlerService } from '../../../../services/csv-handler';
 export class DataHandleTableComponent implements OnInit {
   csvHandlerService = inject(CsvHandlerService);
   newColumnName: string = '';
-  headers = [
-    'testId',
-    'parentId',
-    'Test Type',
-    'Test Title',
-    'Test Priority',
-    'Scope',
-    'Step',
-  ];
+
+  headers = computed(() => this.csvHandlerService.parsedData()?.[0] ?? []);
+  bodyRows = computed(() => this.csvHandlerService.parsedData()?.slice(1) ?? []);
 
   ngOnInit() {
     this.csvHandlerService.parseCSV()
