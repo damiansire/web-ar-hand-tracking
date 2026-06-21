@@ -35,6 +35,10 @@ let tracker: HandTracker | null = null;
 let scene: ARScene | null = null;
 let frameActive = false;
 let onResize: (() => void) | null = null;
+// Recursos del modo AR (timers, listeners de los selectores): se agrupan acá para
+// que cleanup() los suelte simétricamente al salir de la vista AR. Sin esto, el
+// setTimeout del hint y los listeners quedaban colgados sobre nodos desconectados.
+let arDisposers: Array<() => void> = [];
 
 /**
  * Libera cámara, worker, escena, loop de cuadros y listeners. Se llama al
@@ -53,6 +57,9 @@ function cleanup(): void {
     window.removeEventListener("resize", onResize);
     onResize = null;
   }
+  // Suelta timers y listeners del modo AR (hint, selectores, capture).
+  for (const dispose of arDisposers) dispose();
+  arDisposers = [];
 }
 
 function dispatch(event: AppEvent): void {
@@ -166,12 +173,23 @@ async function renderAR(): Promise<void> {
   scene.setFigure(DEFAULT_FIGURE);
   scene.start();
 
-  view.selector.addEventListener("figure-change", (e) => {
+  // Registra un listener y deja su baja en arDisposers (cleanup lo suelta al salir).
+  const on = <T extends EventTarget>(
+    target: T,
+    type: string,
+    handler: EventListener,
+  ): void => {
+    target.addEventListener(type, handler);
+    arDisposers.push(() => target.removeEventListener(type, handler));
+  };
+
+  on(view.selector, "figure-change", (e) => {
     scene?.setFigure((e as CustomEvent<FigureKind>).detail);
   });
 
   // Cartel de instrucción del modo (toast central que se desvanece solo).
   let hintTimer = 0;
+  arDisposers.push(() => clearTimeout(hintTimer));
   const showHint = (text: string): void => {
     if (!text) return;
     view.hint.textContent = text;
@@ -188,7 +206,7 @@ async function renderAR(): Promise<void> {
 
   // Cambio de experiencia creativa: activa el modo, muestra/oculta el selector de
   // figuras (sólo relevante en "figuras") y anuncia la instrucción del modo.
-  view.experience.addEventListener("experience-change", (e) => {
+  on(view.experience, "experience-change", (e) => {
     const kind = (e as CustomEvent<ExperienceKind>).detail;
     scene?.setExperience(kind);
     const figuras = kind === "figuras";
@@ -199,7 +217,7 @@ async function renderAR(): Promise<void> {
     showHint(experienceHint(kind));
   });
 
-  view.controls.addEventListener("controls-change", (e) => {
+  on(view.controls, "controls-change", (e) => {
     const c = (e as CustomEvent<ControlsState>).detail;
     scene?.setSize(c.size);
     scene?.setSpeed(c.speed);
@@ -223,7 +241,7 @@ async function renderAR(): Promise<void> {
     view.root.style.background = c.bgEnabled ? c.bgColor : "#000";
   });
 
-  view.capture.addEventListener("click", () => {
+  on(view.capture, "click", () => {
     const c = view.controls.getState();
     // Render explícito en este tick: el canvas queda legible sin depender de
     // preserveDrawingBuffer. El canvas puede haber sido reemplazado por el
