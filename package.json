@@ -1,12 +1,43 @@
 {
   "name": "test-case-manager",
   "version": "0.0.0",
+  "description": "Importador y visualizador de archivos CSV en Angular: auto-detecta delimitador y salto de linea, parsea (soporte RFC 4180 con campos entrecomillados) en una tabla, permite seleccionar filas y persiste el archivo en localStorage.",
+  "author": "Damian Sire <damiansire@gmail.com>",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/damiansire/AI-Examples.git"
+  },
+  "bugs": "https://github.com/damiansire/AI-Examples/issues",
+  "keywords": [
+    "angular",
+    "typescript",
+    "csv",
+    "csv-parser",
+    "signals",
+    "tailwindcss"
+  ],
   "scripts": {
     "ng": "ng",
     "start": "ng serve",
     "build": "ng build",
     "watch": "ng build --watch --configuration development",
-    "test": "ng test"
+    "test": "ng test",
+    "lint": "ng lint",
+    "format": "prettier --write \"src/**/*.{ts,html,scss,json}\"",
+    "format:check": "prettier --check \"src/**/*.{ts,html,scss,json}\""
+  },
+  "prettier": {
+    "printWidth": 100,
+    "singleQuote": true,
+    "overrides": [
+      {
+        "files": "*.html",
+        "options": {
+          "parser": "angular"
+        }
+      }
+    ]
   },
   "private": true,
   "dependencies": {
@@ -25,8 +56,11 @@
     "@angular-devkit/build-angular": "^19.0.4",
     "@angular/cli": "^19.0.4",
     "@angular/compiler-cli": "^19.0.0",
+    "@eslint/js": "^9.16.0",
     "@types/jasmine": "~5.1.0",
+    "angular-eslint": "^19.0.0",
     "autoprefixer": "^10.4.20",
+    "eslint": "^9.16.0",
     "jasmine-core": "~5.4.0",
     "karma": "~6.4.0",
     "karma-chrome-launcher": "~3.2.0",
@@ -34,7 +68,9 @@
     "karma-jasmine": "~5.1.0",
     "karma-jasmine-html-reporter": "~2.1.0",
     "postcss": "^8.4.49",
+    "prettier": "^3.8.4",
     "tailwindcss": "^3.4.16",
-    "typescript": "~5.6.2"
+    "typescript": "~5.6.2",
+    "typescript-eslint": "^8.18.0"
   }
 }
