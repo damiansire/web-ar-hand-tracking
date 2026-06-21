@@ -88,7 +88,6 @@
                 <tr
                   [class.bg-blue-50]="csvHandlerService.selectedRows().includes($index + 1)"
                   (click)="toggleRowSelection($index + 1)"
-                  [class.bg-blue-50]="csvHandlerService.selectedRows().includes($index + 1)"
                 >
                   @for (cell of row; track $index) {
                   <td
