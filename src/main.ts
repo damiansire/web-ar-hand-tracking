@@ -219,21 +219,9 @@ async function renderAR(): Promise<void> {
 
   on(view.controls, "controls-change", (e) => {
     const c = (e as CustomEvent<ControlsState>).detail;
-    scene?.setSize(c.size);
-    scene?.setSpeed(c.speed);
-    scene?.setColor(c.color);
-    scene?.setFaces(c.faces);
-    scene?.setOpacity(c.opacity);
-    scene?.setMetalness(c.metalness);
-    scene?.setRoughness(c.roughness);
-    scene?.setWireframe(c.wireframe);
-    scene?.setEdges(c.edges);
-    scene?.setEdgeColor(c.edgeColor);
-    scene?.setShadow(c.shadow);
-    scene?.setMultiHand(c.multiHand);
-    scene?.setOcclusion(c.occlusion);
+    // Un solo contrato UI→render: la escena aplica todo el estado de controles.
+    scene?.applyControls(c);
     // El espejado del overlay (escena) debe coincidir con el del <video> (CSS).
-    scene?.setMirrored(c.mirrored);
     view.video.style.transform = c.mirrored ? "scaleX(-1)" : "none";
     // Fondo de color: oculta el video de la cámara y pinta el color elegido
     // detrás de la figura (equivale al "Background" de la versión original).

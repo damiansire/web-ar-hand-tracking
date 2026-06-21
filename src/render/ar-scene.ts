@@ -81,6 +81,7 @@ import { convexHull, fanTriangulate, type Pt } from "../domain/occluder";
 import { Vec3Smoother } from "../domain/smoothing";
 import type { ExperienceKind } from "../domain/experiences";
 import { createExperience, type Experience, type ExperienceContext } from "./experiences";
+import type { ControlsState } from "../ui/ar-controls";
 
 const BASE = 120; // tamaño base de la figura en píxeles
 const MAX_FIGURES = 16; // tope de figuras simultáneas (InstancedMesh: 1 draw call)
@@ -560,6 +561,30 @@ export class ARScene {
   /** Dibujar figuras en todas las manos detectadas (hasta el tope). */
   setMultiHand(enabled: boolean): void {
     this.multiHand = enabled;
+  }
+
+  /**
+   * Aplica de una sola vez todo el estado de los controles a la escena. Es el
+   * único contrato UI→render: agregar un control nuevo es mapear su campo acá (no
+   * cablear un setter suelto desde main.ts). Los campos de fondo (`bgEnabled`/
+   * `bgColor`) NO son de la escena —los maneja el shell sobre el DOM del video— y
+   * por eso no se tocan acá.
+   */
+  applyControls(c: ControlsState): void {
+    this.setSize(c.size);
+    this.setSpeed(c.speed);
+    this.setColor(c.color);
+    this.setFaces(c.faces);
+    this.setOpacity(c.opacity);
+    this.setMetalness(c.metalness);
+    this.setRoughness(c.roughness);
+    this.setWireframe(c.wireframe);
+    this.setEdges(c.edges);
+    this.setEdgeColor(c.edgeColor);
+    this.setShadow(c.shadow);
+    this.setMultiHand(c.multiHand);
+    this.setOcclusion(c.occlusion);
+    this.setMirrored(c.mirrored);
   }
 
   /**
