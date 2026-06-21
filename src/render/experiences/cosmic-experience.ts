@@ -25,7 +25,11 @@ import {
   SphereGeometry,
 } from "three/webgpu";
 import { uniform, uv, vec2, smoothstep, oneMinus } from "three/tsl";
-import { landmarkToScreen, ANCHOR_LANDMARK_INDEX } from "../../domain/hand-tracking";
+import {
+  landmarkToScreenInto,
+  ANCHOR_LANDMARK_INDEX,
+  type MutScreenPoint,
+} from "../../domain/hand-tracking";
 import { FINGERTIPS, PinchDetector } from "../../domain/hand-gestures";
 import { ParticleField, depthFactor, type Attractor } from "../../domain/particle-field";
 import type { Experience, ExperienceContext } from "./experience";
@@ -94,6 +98,8 @@ export class CosmicExperience implements Experience {
   private m = new Matrix4();
   private hidden = new Matrix4().makeScale(0, 0, 0);
   private scratch = new Color(); // Color reusable por frame (evita GC en el loop)
+  private sp: MutScreenPoint = { x: 0, y: 0, z: 0 }; // scratch alloc-free por frame
+  private midLm = { x: 0, y: 0, z: 0 }; // punto medio del pellizco (reusado)
   private qScale = 1; // fracción de partículas a dibujar (calidad adaptativa)
 
   constructor() {
@@ -163,14 +169,20 @@ export class CosmicExperience implements Experience {
     if (pinching && hand) {
       const a = hand[FINGERTIPS.thumb];
       const b = hand[FINGERTIPS.index];
-      const mid = a && b ? { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, z: 0 } : anchor;
+      let mid: { x: number; y: number; z: number } | null = anchor;
+      if (a && b) {
+        this.midLm.x = (a.x + b.x) / 2;
+        this.midLm.y = (a.y + b.y) / 2;
+        this.midLm.z = 0;
+        mid = this.midLm;
+      }
       if (mid) {
-        const p = landmarkToScreen(mid, w, h, ctx.mirrored);
+        const p = landmarkToScreenInto(this.sp, mid, w, h, ctx.mirrored);
         this.cx = p.x;
         this.cy = p.y;
       }
     } else if (anchor) {
-      const p = landmarkToScreen(anchor, w, h, ctx.mirrored);
+      const p = landmarkToScreenInto(this.sp, anchor, w, h, ctx.mirrored);
       this.cx = p.x;
       this.cy = p.y;
     }

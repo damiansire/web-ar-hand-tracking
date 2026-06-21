@@ -18,7 +18,7 @@ import {
   MeshStandardNodeMaterial,
 } from "three/webgpu";
 import { uniform, uv, vec2, smoothstep, oneMinus } from "three/tsl";
-import { landmarkToScreen } from "../../domain/hand-tracking";
+import { landmarkToScreenInto, type MutScreenPoint } from "../../domain/hand-tracking";
 import {
   extendedFingerCount,
   fingertip,
@@ -47,6 +47,7 @@ export class DrawExperience implements Experience {
   private wasDrawing = [false, false];
   private m = new Matrix4();
   private hidden = new Matrix4().makeScale(0, 0, 0);
+  private sp: MutScreenPoint = { x: 0, y: 0, z: 0 }; // scratch alloc-free por frame
 
   constructor() {
     // Material emisivo opaco (los puntos se superponen formando un trazo grueso).
@@ -92,7 +93,7 @@ export class DrawExperience implements Experience {
         !open && tip !== null && !pinching && isFingerExtended(hand, "index");
 
       if (drawing && tip) {
-        const p = landmarkToScreen(tip, ctx.width, ctx.height, ctx.mirrored);
+        const p = landmarkToScreenInto(this.sp, tip, ctx.width, ctx.height, ctx.mirrored);
         const hasLast = trail.count > 0;
         const lastX = hasLast ? trail.lastX() : 0;
         const lastY = hasLast ? trail.lastY() : 0;

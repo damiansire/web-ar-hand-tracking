@@ -67,10 +67,10 @@ import type { FigureKind } from "../domain/figures";
 import {
   anchorOf,
   handPerspectiveScale,
-  landmarkToScreen,
+  landmarkToScreenInto,
   palmWinding,
 } from "../domain/hand-tracking";
-import type { NormalizedLandmark } from "../domain/hand-tracking";
+import type { MutScreenPoint, NormalizedLandmark } from "../domain/hand-tracking";
 import {
   applyFacingHysteresis,
   cornerTarget,
@@ -221,6 +221,7 @@ export class ARScene {
   private target = { show: false, x: 0, y: 0, s: 0 }; // struct objetivo reusado
   private corner = { x: 0, y: 0, s: 0 }; // struct esquina reusado
   private occluderScratch: Pt[] = Array.from({ length: 21 }, () => ({ x: 0, y: 0 }));
+  private screenScratch: MutScreenPoint = { x: 0, y: 0, z: 0 }; // reuso alloc-free
 
   /**
    * Construcción: usar `await ARScene.create(canvas)` en vez del constructor.
@@ -575,7 +576,7 @@ export class ARScene {
     let m = 0;
     for (const lm of hand) {
       if (m >= sp.length) break;
-      const p = landmarkToScreen(lm, w, h, this.mirrored);
+      const p = landmarkToScreenInto(this.screenScratch, lm, w, h, this.mirrored);
       sp[m].x = p.x;
       sp[m].y = p.y;
       m++;
@@ -714,7 +715,7 @@ export class ARScene {
 
       // Si hay mano, actualizamos su última posición/escala conocidas.
       if (anchor) {
-        const p = landmarkToScreen(anchor, w, h, this.mirrored);
+        const p = landmarkToScreenInto(this.screenScratch, anchor, w, h, this.mirrored);
         slot.hx = p.x;
         slot.hy = p.y;
         // Perspectiva: tamaño según la mano (cerca = grande, lejos = chica),

@@ -32,7 +32,11 @@ import {
   uv,
   vec2,
 } from "three/tsl";
-import { landmarkToScreen, type ScreenPoint } from "../../domain/hand-tracking";
+import {
+  landmarkToScreenInto,
+  type MutScreenPoint,
+  type ScreenPoint,
+} from "../../domain/hand-tracking";
 import { FINGERTIPS } from "../../domain/hand-gestures";
 import type { Experience, ExperienceContext } from "./experience";
 
@@ -136,6 +140,18 @@ export class LaserExperience implements Experience {
   private euler = new Euler();
   private hidden = new Matrix4().makeScale(0, 0, 0);
 
+  // Scratch alloc-free para proyectar landmarks por frame (ver invariante
+  // near-zero-alloc del repo). `tipBuf` guarda las 5 puntas de cada mano (deben
+  // sobrevivir para tender los rayos punta-a-punta entre ambas manos); `pa`/`pb`
+  // son endpoints transitorios de cada hueso.
+  private tipBuf: MutScreenPoint[][] = [
+    Array.from({ length: 5 }, () => ({ x: 0, y: 0, z: 0 })),
+    Array.from({ length: 5 }, () => ({ x: 0, y: 0, z: 0 })),
+  ];
+  private pa: MutScreenPoint = { x: 0, y: 0, z: 0 };
+  private pb: MutScreenPoint = { x: 0, y: 0, z: 0 };
+  private pn: MutScreenPoint = { x: 0, y: 0, z: 0 };
+
   constructor() {
     this.beamColorAttr.setUsage(DynamicDrawUsage);
     this.beamMat = new MeshStandardNodeMaterial({
@@ -198,9 +214,10 @@ export class LaserExperience implements Experience {
     this.userCol.set(ctx.color);
 
     const screen = (
+      out: MutScreenPoint,
       hand: readonly { x: number; y: number; z: number }[],
       idx: number,
-    ): ScreenPoint => landmarkToScreen(hand[idx], w, h, ctx.mirrored);
+    ): MutScreenPoint => landmarkToScreenInto(out, hand[idx], w, h, ctx.mirrored);
 
     const cols = this.beamColorAttr.array as Float32Array;
     let beamCount = 0;
@@ -232,24 +249,29 @@ export class LaserExperience implements Experience {
       );
     };
 
-    const presentTips: (ScreenPoint[] | null)[] = [null, null];
+    // ¿Qué manos están presentes este frame? (sus puntas quedan en `tipBuf[i]`).
+    const present: [boolean, boolean] = [false, false];
     for (let i = 0; i < ctx.hands.length && i < 2; i++) {
       const hand = ctx.hands[i];
       if (!hand || hand.length < 21) continue;
-      presentTips[i] = TIPS.map((t) => screen(hand, t));
+      present[i] = true;
+      // Puntas de esta mano en su buffer persistente (para los rayos entre manos).
+      for (let k = 0; k < TIPS.length; k++) {
+        landmarkToScreenInto(this.tipBuf[i][k], hand[TIPS[k]], w, h, ctx.mirrored);
+      }
       // Rayos a lo largo de los huesos reales (sin unir puntas entre sí), un tono por dedo.
       for (let bi = 0; bi < BONES.length; bi++) {
         const [a, b] = BONES[bi];
-        beam(screen(hand, a), screen(hand, b), BEAM_HUES[bi]);
+        beam(screen(this.pa, hand, a), screen(this.pb, hand, b), BEAM_HUES[bi]);
       }
-      node(screen(hand, WRIST), 8);
-      for (const t of TIPS) node(screen(hand, t), 9);
+      node(screen(this.pn, hand, WRIST), 8);
+      for (const t of TIPS) node(screen(this.pn, hand, t), 9);
     }
 
     // Rayos entre las dos manos (punta con punta), en el color del usuario.
-    if (presentTips[0] && presentTips[1]) {
+    if (present[0] && present[1]) {
       for (let k = 0; k < TIPS.length; k++) {
-        beam(presentTips[0][k], presentTips[1][k], this.userCol);
+        beam(this.tipBuf[0][k], this.tipBuf[1][k], this.userCol);
       }
     }
 

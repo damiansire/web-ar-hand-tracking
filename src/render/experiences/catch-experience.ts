@@ -21,7 +21,11 @@ import {
   RingGeometry,
 } from "three/webgpu";
 import { uniform } from "three/tsl";
-import { landmarkToScreen, handPerspectiveScale } from "../../domain/hand-tracking";
+import {
+  landmarkToScreenInto,
+  handPerspectiveScale,
+  type MutScreenPoint,
+} from "../../domain/hand-tracking";
 import { fingertip } from "../../domain/hand-gestures";
 import {
   createCatchState,
@@ -84,6 +88,7 @@ export class CatchExperience implements Experience {
   private mat = new Matrix4();
   private hidden = new Matrix4().makeScale(0, 0, 0);
   private catchers: Catcher[] = [];
+  private sp: MutScreenPoint = { x: 0, y: 0, z: 0 }; // scratch alloc-free por frame
 
   constructor() {
     this.circleMat = new MeshStandardNodeMaterial({
@@ -140,12 +145,12 @@ export class CatchExperience implements Experience {
       const scale = handPerspectiveScale(hand, w, h);
       const palm = hand?.[9];
       if (palm) {
-        const p = landmarkToScreen(palm, w, h, ctx.mirrored);
+        const p = landmarkToScreenInto(this.sp, palm, w, h, ctx.mirrored);
         addCatcher(p.x, p.y, PALM_RADIUS * scale);
       }
       const tip = fingertip(hand, "index");
       if (tip) {
-        const p = landmarkToScreen(tip, w, h, ctx.mirrored);
+        const p = landmarkToScreenInto(this.sp, tip, w, h, ctx.mirrored);
         addCatcher(p.x, p.y, TIP_RADIUS * scale);
       }
     }

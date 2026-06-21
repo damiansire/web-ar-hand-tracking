@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   landmarkToScreen,
+  landmarkToScreenInto,
   pickAnchor,
   handPerspectiveScale,
   palmWinding,
@@ -29,6 +30,24 @@ describe("landmarkToScreen", () => {
 
   it("preserva la profundidad z", () => {
     expect(landmarkToScreen(lm(0, 0, -0.3), 100, 100, false).z).toBe(-0.3);
+  });
+});
+
+describe("landmarkToScreenInto", () => {
+  it("escribe el mismo resultado que landmarkToScreen sin alocar", () => {
+    const out = { x: 0, y: 0, z: 0 };
+    const ret = landmarkToScreenInto(out, lm(0.25, 0.5, -0.3), 640, 480, true);
+    expect(ret).toBe(out); // muta y devuelve el mismo objeto (sin alocar)
+    expect(out).toMatchObject({ x: 480, y: 240, z: -0.3 });
+    // Coincide con la variante que aloca.
+    expect(out).toMatchObject(landmarkToScreen(lm(0.25, 0.5, -0.3), 640, 480, true));
+  });
+
+  it("reusa el buffer entre llamadas (no aloca uno nuevo)", () => {
+    const out = { x: 0, y: 0, z: 0 };
+    landmarkToScreenInto(out, lm(0.1, 0.2), 100, 100, false);
+    landmarkToScreenInto(out, lm(0.7, 0.8), 100, 100, false);
+    expect(out).toMatchObject({ x: 70, y: 80 });
   });
 });
 

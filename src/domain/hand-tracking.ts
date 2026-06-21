@@ -17,6 +17,16 @@ export interface ScreenPoint {
 }
 
 /**
+ * Variante mutable de `ScreenPoint` para el camino alloc-free
+ * (`landmarkToScreenInto`): el consumidor preasigna uno y lo reusa por frame.
+ */
+export interface MutScreenPoint {
+  x: number;
+  y: number;
+  z: number;
+}
+
+/**
  * Índice del landmark usado como ancla de la figura.
  * 9 = base del dedo medio (MIDDLE_FINGER_MCP) ≈ centro de la palma,
  * mucho más estable que la punta de un dedo.
@@ -52,6 +62,25 @@ export function landmarkToScreen(
     y: landmark.y * height,
     z: landmark.z,
   };
+}
+
+/**
+ * Variante alloc-free de `landmarkToScreen`: escribe el resultado en `out`
+ * (preasignado por el consumidor) en vez de devolver un objeto nuevo, y lo
+ * retorna por conveniencia. Pensada para el hot path de render, donde se llama
+ * miles de veces por segundo (ver invariante near-zero-alloc del repo).
+ */
+export function landmarkToScreenInto(
+  out: MutScreenPoint,
+  landmark: NormalizedLandmark,
+  width: number,
+  height: number,
+  mirrored: boolean,
+): MutScreenPoint {
+  out.x = (mirrored ? 1 - landmark.x : landmark.x) * width;
+  out.y = landmark.y * height;
+  out.z = landmark.z;
+  return out;
 }
 
 /**
