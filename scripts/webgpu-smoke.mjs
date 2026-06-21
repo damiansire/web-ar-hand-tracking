@@ -29,14 +29,16 @@ const __dirname = fileURLToPath(new URL(".", import.meta.url));
 const ROOT = join(__dirname, "..");
 const DIST = join(ROOT, "dist");
 
-// Playwright se instala vía `npx playwright` (no como dep local), así que lo
-// resolvemos: primero como módulo normal y, si no, escaneando el cache de npx.
+// Playwright está declarado como devDependency (ver package.json), así que lo
+// resolvemos como módulo local normal. Si por algún motivo no estuviera (p. ej.
+// `npm ci --omit=dev`), caemos al cache de npx como último recurso, pero el
+// camino esperado —y el que corre en CI— es el require local.
 const require = createRequire(import.meta.url);
 async function resolvePlaywright() {
   try {
     return require("playwright");
   } catch {
-    /* no instalado localmente */
+    /* no instalado localmente: probamos el cache de npx */
   }
   const npxCache = join(
     process.env.LOCALAPPDATA ?? join(process.env.USERPROFILE ?? "", "AppData/Local"),
@@ -56,7 +58,9 @@ async function resolvePlaywright() {
       }
     }
   }
-  throw new Error("No se pudo resolver playwright (ni local ni en el cache de npx).");
+  throw new Error(
+    "No se pudo resolver playwright. Instalá las deps (`npm ci`) y los navegadores (`npx playwright install --with-deps chromium`).",
+  );
 }
 const { chromium } = await resolvePlaywright();
 
@@ -251,3 +255,19 @@ console.log(JSON.stringify(result, null, 2));
 console.log("\n================ CONSOLA DEL BROWSER ================");
 console.log(consoleLines.length ? consoleLines.join("\n") : "(sin logs de consola)");
 console.log("\n[screenshot] scripts/webgpu-smoke.png");
+
+// Gate para CI: el smoke FALLA (exit 1) si la escena no se creó o el canvas quedó
+// vacío/transparente. Así un refactor que rompa el arranque WebGPU/WebGL2 o deje
+// el render en blanco corta el pipeline en vez de pasar silencioso.
+const failures = [];
+if (result.sceneError) failures.push(`sceneError: ${result.sceneError}`);
+if (!result.pixelStats) failures.push("no se obtuvieron pixelStats (no se renderizó)");
+else if (result.pixelStats.nonTransparent === 0)
+  failures.push("el canvas quedó 100% transparente (no se pintó nada)");
+
+if (failures.length) {
+  console.error("\n================ SMOKE FALLÓ ================");
+  for (const f of failures) console.error(` - ${f}`);
+  process.exit(1);
+}
+console.log("\n[smoke] OK — la escena renderizó píxeles visibles.");

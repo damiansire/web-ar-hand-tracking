@@ -20,3 +20,32 @@ jobs:
       - run: npm run typecheck
       - run: npm test
       - run: npm run build
+      # Vigilancia continua de supply-chain: falla si aparece una vuln de runtime
+      # de severidad alta o crítica. No bloquea por vulns de devDeps.
+      - run: npm audit --omit=dev --audit-level=high
+      # Persistimos el build para que el job de smoke reutilice el mismo dist/.
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist
+          retention-days: 1
+
+  smoke:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+      - run: npm ci
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist
+      # Chromium con WebGPU por software (SwiftShader) para correr headless en CI.
+      - run: npx playwright install --with-deps chromium
+      # El smoke crea la ARScene real y verifica que el canvas pinte píxeles;
+      # sale con código !=0 si sceneError!=null o el canvas quedó transparente.
+      - run: npm run smoke:webgpu
