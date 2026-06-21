@@ -1,5 +1,11 @@
-import { computed, effect, inject, Injectable, signal } from '@angular/core';
+import { computed, effect, inject, Injectable, linkedSignal, signal } from '@angular/core';
 import { DataStorageSyncService } from './data-storage-sync.service';
+
+// Orden de preferencia para auto-detectar el delimitador cuando el CSV
+// contiene varios candidatos: la coma es el caso mas comun (RFC 4180).
+const DELIMITER_CANDIDATES = [',', ';', '\t', '|'] as const;
+const DEFAULT_DELIMITER = ',';
+const DEFAULT_LINE_BREAK = '\n';
 
 @Injectable({
   providedIn: 'root',
@@ -9,8 +15,6 @@ export class CsvHandlerService {
   dataStorageSyncService = inject(DataStorageSyncService);
 
   csvData = signal<string | null>(null);
-  selectedDelimiter = signal(',');
-  selectedLineBreak = signal('\n');
   parsedData = signal<string[][] | null>(null);
   selectedRows = signal<number[]>([]);
 
@@ -19,8 +23,7 @@ export class CsvHandlerService {
     if (!csvData) {
       return null;
     }
-    const possibleDelimiters = [',', ';', '\t', '|'];
-    return possibleDelimiters.filter((d) => csvData.includes(d));
+    return DELIMITER_CANDIDATES.filter((d) => csvData.includes(d));
   });
 
   possibleLineBreaks = computed(() => {
@@ -33,6 +36,20 @@ export class CsvHandlerService {
     }
     const possibleLineBreaks = ['\n', '\r'];
     return possibleLineBreaks.filter((lb) => csvData.includes(lb));
+  });
+
+  // El delimitador/salto efectivos se auto-detectan a partir del CSV cargado
+  // (el primer candidato presente, por orden de preferencia) y quedan como
+  // valor por defecto. linkedSignal permite que el usuario los sobreescriba
+  // desde la UI; al cargar un CSV nuevo se vuelve a recalcular el default.
+  selectedDelimiter = linkedSignal<readonly string[] | null, string>({
+    source: this.possibleDelimiters,
+    computation: (candidates) => candidates?.[0] ?? DEFAULT_DELIMITER,
+  });
+
+  selectedLineBreak = linkedSignal<readonly string[] | null, string>({
+    source: this.possibleLineBreaks,
+    computation: (candidates) => candidates?.[0] ?? DEFAULT_LINE_BREAK,
   });
 
   setCsv(csvData: string) {

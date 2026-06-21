@@ -41,6 +41,42 @@ describe('CsvHandlerService', () => {
       ]);
     });
 
+    it('auto-detecta el delimitador ; sin configuracion manual', () => {
+      service.setCsv('a;b;c\n1;2;3');
+      // sin tocar selectedDelimiter: debe inferirse desde el CSV
+      expect(service.selectedDelimiter()).toBe(';');
+
+      service.parseCSV();
+
+      expect(service.parsedData()).toEqual([
+        ['a', 'b', 'c'],
+        ['1', '2', '3'],
+      ]);
+    });
+
+    it('auto-detecta el salto CRLF sin configuracion manual', () => {
+      service.setCsv('a,b\r\nc,d');
+      expect(service.selectedLineBreak()).toBe('\r\n');
+
+      service.parseCSV();
+
+      expect(service.parsedData()).toEqual([
+        ['a', 'b'],
+        ['c', 'd'],
+      ]);
+    });
+
+    it('la eleccion manual del usuario sobreescribe la auto-deteccion', () => {
+      service.setCsv('a;b,c');
+      // auto-detecta ',' o ';'? el primero por orden de preferencia es ','
+      expect(service.selectedDelimiter()).toBe(',');
+      // el usuario fuerza ';'
+      service.selectedDelimiter.set(';');
+      service.parseCSV();
+
+      expect(service.parsedData()).toEqual([['a', 'b,c']]);
+    });
+
     it('parsea con delimitador pipe y tabulador', () => {
       service.setCsv('a|b|c');
       service.selectedDelimiter.set('|');
