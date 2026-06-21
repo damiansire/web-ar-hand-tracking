@@ -17,6 +17,24 @@ _(requiere cámara; el video nunca sale de tu dispositivo)_
 
 ## Qué se puede hacer
 
+La app trae **5 experiencias** creativas que se eligen desde el selector inferior
+(el diferenciador frente a la versión original p5.js + ml5.js, que sólo seguía la
+mano con una figura). Cada modo decide internamente cómo usa las manos:
+
+| Modo            | Qué hace                                                                            |
+| --------------- | ----------------------------------------------------------------------------------- |
+| **Figuras 3D**  | Mové la mano: la figura te sigue.                                                    |
+| **Dibujar**     | Dibujá con el índice · juntá los dedos para mover · abrí la mano para borrar.        |
+| **Atrapar**     | Atrapá los círculos con la mano y sumá puntos.                                       |
+| **Cosmos**      | Mové la mano: la nebulosa orbita · pellizcá para formar un planeta · soltá para el destello. |
+| **Láseres**     | Tu mano se enciende en neón · mostrá las dos para rayos entre ellas.                 |
+
+> Esta tabla refleja `EXPERIENCES` en
+> [`src/domain/experiences.ts`](src/domain/experiences.ts) (labels + hints); si
+> agregás o cambiás un modo, actualizá ambos para que no se desincronicen.
+
+### Modo Figuras 3D — detalle
+
 Elegir entre 6 figuras 3D que siguen la mano (con **perspectiva**: cerca = más
 grande), ajustar tamaño/velocidad/opacidad/material/color, mostrar aristas o
 wireframe, sombra, **dos manos** a la vez, fondo de color, **oclusión** (la
