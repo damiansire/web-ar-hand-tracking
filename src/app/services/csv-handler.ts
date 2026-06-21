@@ -1,6 +1,4 @@
 import { computed, effect, inject, Injectable, signal } from '@angular/core';
-import { findSpecialCharacters } from '../libs/text-helper';
-import { LocalStorageService } from './local-storage.service';
 import { DataStorageSyncService } from './data-storage-sync.service';
 
 @Injectable({
