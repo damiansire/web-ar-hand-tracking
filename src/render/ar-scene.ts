@@ -42,7 +42,6 @@ import {
   OrthographicCamera,
   PlaneGeometry,
   Quaternion,
-  RenderPipeline,
   Scene,
   SphereGeometry,
   TorusGeometry,
@@ -55,13 +54,11 @@ import {
   dot,
   normalWorld,
   oneMinus,
-  pass,
   positionWorld,
   pow,
   uniform,
-  vec4,
 } from "three/tsl";
-import { bloom } from "three/addons/tsl/display/BloomNode.js";
+import { BloomCompositor } from "./bloom-compositor";
 import { PerfGovernor, initialTierIndex } from "../domain/perf-governor";
 import type { FigureKind } from "../domain/figures";
 import {
@@ -131,13 +128,10 @@ export class ARScene {
   /** Backend efectivo, para diagnóstico ("webgpu" o "webgl"). */
   readonly backend: "webgpu" | "webgl";
 
-  // Post-proceso de bloom (glow). Camino WebGPU/TSL (NO UnrealBloomPass, que no
-  // soporta fondo transparente). `null` si falló la inicialización → render
-  // directo (nunca queda negro). Componemos sumando el glow al color de la escena
-  // y reusando el alpha de la escena, así el canvas sigue siendo overlay del video.
-  private post: RenderPipeline | null = null;
-  private bloomEnabled = true;
-  private bloomInFlight = false; // evita encolar renders de bloom (anti pile-up)
+  // Post-proceso de bloom (glow): colaborador que encapsula el pipeline TSL y la
+  // composición de alpha para el overlay transparente sobre el video (ver
+  // `BloomCompositor`). ARScene sólo lo habilita por tier y le delega el present.
+  private bloom = new BloomCompositor();
 
   // Calidad adaptativa: baja resolución/bloom/partículas si el FPS cae (y sube si
   // sobra), para ir fluido en cualquier equipo. `dprCap` es el tope de
@@ -320,7 +314,7 @@ export class ARScene {
       }),
     );
     this.dprCap = this.governor.tier.pixelRatioCap;
-    this.bloomEnabled = this.governor.tier.bloom;
+    this.bloom.setEnabled(this.governor.tier.bloom);
 
     this.resize();
   }
@@ -336,7 +330,7 @@ export class ARScene {
       try {
         const scene = new ARScene(canvas, true);
         await scene.renderer.init();
-        scene.initPostProcessing();
+        scene.bloom.init(scene.renderer, scene.scene, scene.camera);
         return scene;
       } catch {
         // El adapter existía pero la init de WebGPU falló (driver, feature, etc.).
@@ -347,7 +341,7 @@ export class ARScene {
     }
     const scene = new ARScene(canvas, false);
     await scene.renderer.init();
-    scene.initPostProcessing();
+    scene.bloom.init(scene.renderer, scene.scene, scene.camera);
     return scene;
   }
 
@@ -378,60 +372,18 @@ export class ARScene {
     return mat;
   }
 
-  /**
-   * Arma el pipeline de bloom (TSL): glow del color de la escena sumado de vuelta
-   * al color. Si algo falla (backend/versión), deja `post=null` y se renderiza
-   * directo (sin glow, pero nunca negro). Se llama tras `renderer.init()`.
-   */
-  private initPostProcessing(): void {
-    try {
-      const scenePass = pass(this.scene, this.camera);
-      const bloomPass = bloom(scenePass, 0.9, 0.5, 0.0);
-      // CLAVE para el overlay sobre video: por defecto el post-proceso saca alpha=1
-      // (canvas opaco → tapa el video de negro). Componemos a mano: glow sumado al
-      // color, y alpha = max(alpha de la escena, brillo del glow). Así las zonas sin
-      // partículas ni glow quedan transparentes (se ve el video) y el glow se
-      // compone como luz translúcida encima.
-      const rgb = scenePass.add(bloomPass);
-      const glowLum = bloomPass.r.max(bloomPass.g).max(bloomPass.b);
-      const alpha = scenePass.a.max(glowLum).clamp(0, 1);
-      const post = new RenderPipeline(this.renderer);
-      post.outputNode = vec4(rgb.rgb, alpha);
-      this.post = post;
-    } catch {
-      this.post = null; // sin bloom: render directo
-    }
-  }
-
   /** Aplica el tier de calidad actual del governor (resolución, bloom, partículas). */
   private applyTier(): void {
     const t = this.governor.tier;
     this.dprCap = t.pixelRatioCap;
-    this.bloomEnabled = t.bloom;
+    this.bloom.setEnabled(t.bloom);
     this.resize();
     this.experience?.setQuality?.(t.particleScale);
   }
 
-  /**
-   * Render del frame. El bloom se aplica SOLO en modos de "luz" (cuando hay una
-   * experiencia activa): ahí el glow es el efecto buscado y todo lo que se dibuja
-   * es emisivo. En el modo "Figuras" (geometría sólida con oclusión) se rendea
-   * directo, porque la composición de alpha del bloom volvería el sólido
-   * semi-transparente. `render()` puede ser async (backend WebGPU): lo envolvemos
-   * con un guard que descarta el frame si hay uno en vuelo (no bloquea ni encola
-   * en backends lentos como SwiftShader).
-   */
+  /** Compone el frame (bloom en modos de "luz", directo en figuras). */
   private present(): void {
-    const useBloom = this.post !== null && this.bloomEnabled && this.experience !== null;
-    if (useBloom) {
-      if (this.bloomInFlight) return;
-      this.bloomInFlight = true;
-      void Promise.resolve(this.post!.render()).finally(() => {
-        this.bloomInFlight = false;
-      });
-    } else {
-      this.renderer.render(this.scene, this.camera);
-    }
+    this.bloom.present(this.renderer, this.scene, this.camera, this.experience !== null);
   }
 
   setFigure(kind: FigureKind): void {
@@ -856,7 +808,7 @@ export class ARScene {
 
   dispose(): void {
     this.stop();
-    this.post?.dispose();
+    this.bloom.dispose();
     if (this.experience) {
       this.scene.remove(this.experience.object);
       this.experience.dispose();
