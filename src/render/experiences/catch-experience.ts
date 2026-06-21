@@ -230,11 +230,6 @@ export class CatchExperience implements Experience {
     return `✓ ${this.state.score}   ✗ ${this.state.missed}`;
   }
 
-  reset(): void {
-    this.state = createCatchState();
-    this.burst.length = 0;
-  }
-
   dispose(): void {
     this.circleGeo.dispose();
     this.circleMat.dispose();

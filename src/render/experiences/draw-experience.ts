@@ -139,12 +139,6 @@ export class DrawExperience implements Experience {
     return null;
   }
 
-  reset(): void {
-    for (const t of this.trails) t.clear();
-    for (const d of this.pinch) d.reset();
-    this.wasDrawing = [false, false];
-  }
-
   dispose(): void {
     this.geo.dispose();
     this.mat.dispose();

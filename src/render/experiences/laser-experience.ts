@@ -286,11 +286,6 @@ export class LaserExperience implements Experience {
     return null;
   }
 
-  reset(): void {
-    for (let i = 0; i < MAX_BEAMS; i++) this.beams.setMatrixAt(i, this.hidden);
-    this.beams.instanceMatrix.needsUpdate = true;
-  }
-
   dispose(): void {
     this.beamGeo.dispose();
     this.beamMat.dispose();

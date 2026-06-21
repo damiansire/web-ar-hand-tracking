@@ -32,8 +32,6 @@ export interface Experience {
   update(ctx: ExperienceContext): void;
   /** Texto para el HUD (ej. puntaje), o `null` si el modo no muestra nada. */
   hud(): string | null;
-  /** Reinicia el estado del efecto (sin recrear objetos). */
-  reset(): void;
   /**
    * (Opcional) Ajusta la calidad/costo del efecto: `scale` ∈ (0,1] es la fracción
    * de elementos (ej. partículas) a dibujar. Lo llama ARScene según el tier de

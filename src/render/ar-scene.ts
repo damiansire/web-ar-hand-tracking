@@ -402,11 +402,6 @@ export class ARScene {
     }
   }
 
-  /** Activa/desactiva el glow (bloom). */
-  setBloom(enabled: boolean): void {
-    this.bloomEnabled = enabled;
-  }
-
   /** Aplica el tier de calidad actual del governor (resolución, bloom, partículas). */
   private applyTier(): void {
     const t = this.governor.tier;

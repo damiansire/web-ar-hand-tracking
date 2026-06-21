@@ -264,15 +264,6 @@ export class CosmicExperience implements Experience {
     }
   }
 
-  reset(): void {
-    this.seeded = false;
-    this.coreR = 0;
-    this.flashT = 0;
-    this.pinch.reset();
-    this.core.visible = false;
-    this.halo.visible = false;
-  }
-
   dispose(): void {
     this.geo.dispose();
     for (const l of this.layers) {
