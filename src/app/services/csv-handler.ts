@@ -30,7 +30,10 @@ export class CsvHandlerService {
     if (!csvData) {
       return null;
     }
-    const possibleLineBreaks = ['\n', '\r\n', '\r'];
+    if (csvData.includes('\r\n')) {
+      return ['\r\n'];
+    }
+    const possibleLineBreaks = ['\n', '\r'];
     return possibleLineBreaks.filter((lb) => csvData.includes(lb));
   });
 

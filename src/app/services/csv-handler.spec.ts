@@ -126,10 +126,16 @@ describe('CsvHandlerService', () => {
       expect(service.possibleDelimiters()).toEqual([',', ';']);
     });
 
-    it('detecta los saltos de linea presentes (CRLF y LF)', () => {
+    it('cuando hay CRLF solo ofrece CRLF (no \\n ni \\r sueltos)', () => {
       service.setCsv('a\r\nb');
 
-      expect(service.possibleLineBreaks()).toEqual(['\n', '\r\n', '\r']);
+      expect(service.possibleLineBreaks()).toEqual(['\r\n']);
+    });
+
+    it('ofrece \\n cuando el archivo solo usa LF', () => {
+      service.setCsv('a\nb');
+
+      expect(service.possibleLineBreaks()).toEqual(['\n']);
     });
 
     it('devuelve null cuando no hay csv cargado', () => {
