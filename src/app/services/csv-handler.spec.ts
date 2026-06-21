@@ -87,6 +87,27 @@ describe('CsvHandlerService', () => {
       expect(service.parsedData()).toBeNull();
     });
 
+    it('respeta el delimitador dentro de un campo entrecomillado', () => {
+      service.setCsv('a,"b,c",d');
+      service.parseCSV();
+
+      expect(service.parsedData()).toEqual([['a', 'b,c', 'd']]);
+    });
+
+    it('interpreta las comillas dobles escapadas dentro de un campo', () => {
+      service.setCsv('a,"dijo ""hola""",b');
+      service.parseCSV();
+
+      expect(service.parsedData()).toEqual([['a', 'dijo "hola"', 'b']]);
+    });
+
+    it('respeta el salto de linea dentro de un campo entrecomillado', () => {
+      service.setCsv('a,"linea1\nlinea2",c');
+      service.parseCSV();
+
+      expect(service.parsedData()).toEqual([['a', 'linea1\nlinea2', 'c']]);
+    });
+
     it('no parsea si no hay delimitador seleccionado', () => {
       service.setCsv('a,b\nc,d');
       service.selectedDelimiter.set('');

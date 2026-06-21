@@ -63,11 +63,73 @@ export class CsvHandlerService {
 
     const csvData = this.csvData();
     if(csvData != null){
-      const rows = csvData.split(this.selectedLineBreak());
-      const parsedData = rows.map((row) => row.split(this.selectedDelimiter()));
+      const parsedData = this.parseRows(
+        csvData,
+        this.selectedDelimiter(),
+        this.selectedLineBreak(),
+      );
       this.parsedData.set(parsedData);
       this.selectedRows.set([])
     }
+  }
+
+  // Parser CSV con soporte de campos entrecomillados (RFC 4180):
+  // respeta el delimitador y el salto de linea dentro de comillas dobles y
+  // las comillas escapadas ("").
+  private parseRows(
+    csvData: string,
+    delimiter: string,
+    lineBreak: string,
+  ): string[][] {
+    const rows: string[][] = [];
+    let currentRow: string[] = [];
+    let field = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < csvData.length; i++) {
+      const char = csvData[i];
+
+      if (inQuotes) {
+        if (char === '"') {
+          if (csvData[i + 1] === '"') {
+            field += '"';
+            i++;
+          } else {
+            inQuotes = false;
+          }
+        } else {
+          field += char;
+        }
+        continue;
+      }
+
+      if (char === '"') {
+        inQuotes = true;
+        continue;
+      }
+
+      if (delimiter && csvData.startsWith(delimiter, i)) {
+        currentRow.push(field);
+        field = '';
+        i += delimiter.length - 1;
+        continue;
+      }
+
+      if (lineBreak && csvData.startsWith(lineBreak, i)) {
+        currentRow.push(field);
+        rows.push(currentRow);
+        currentRow = [];
+        field = '';
+        i += lineBreak.length - 1;
+        continue;
+      }
+
+      field += char;
+    }
+
+    currentRow.push(field);
+    rows.push(currentRow);
+    return rows;
   }
 
   reset(): void {
