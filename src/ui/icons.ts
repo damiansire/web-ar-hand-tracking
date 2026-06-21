@@ -35,7 +35,7 @@ export type IconName =
   | "figuras"
   | "dibujo"
   | "atrapar"
-  | "galaxia"
+  | "cosmos"
   | "lasers";
 
 export const ICONS: Record<IconName, string> = {
@@ -111,8 +111,8 @@ export const ICONS: Record<IconName, string> = {
   atrapar: svg(
     '<circle cx="8" cy="5" r="1.6" fill="currentColor" stroke="none"/><circle cx="15" cy="7" r="1.6" fill="currentColor" stroke="none"/><circle cx="11" cy="9" r="1.3" fill="currentColor" stroke="none"/><path d="M4 13a8 6 0 0 0 16 0"/>',
   ),
-  // galaxia: estrella + chispas
-  galaxia: svg(
+  // cosmos: estrella + chispas
+  cosmos: svg(
     '<path d="M11 2l1.6 4.6L17 8l-4.4 1.4L11 14l-1.6-4.6L5 8l4.4-1.4z" fill="currentColor" stroke="none"/><circle cx="18" cy="16" r="1.2" fill="currentColor" stroke="none"/><circle cx="6" cy="17" r="1" fill="currentColor" stroke="none"/>',
   ),
   // lasers: nodos conectados por rayos

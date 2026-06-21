@@ -7,7 +7,7 @@ import type { ExperienceKind } from "../../domain/experiences";
 import type { Experience } from "./experience";
 import { DrawExperience } from "./draw-experience";
 import { CatchExperience } from "./catch-experience";
-import { GalaxyExperience } from "./galaxy-experience";
+import { CosmicExperience } from "./cosmic-experience";
 import { LaserExperience } from "./laser-experience";
 
 export type { Experience, ExperienceContext } from "./experience";
@@ -20,8 +20,8 @@ export function createExperience(kind: ExperienceKind): Experience | null {
       return new DrawExperience();
     case "atrapar":
       return new CatchExperience();
-    case "galaxia":
-      return new GalaxyExperience();
+    case "cosmos":
+      return new CosmicExperience();
     case "lasers":
       return new LaserExperience();
   }

@@ -19,20 +19,21 @@ import {
 } from "three/webgpu";
 import { uniform, uv, vec2, smoothstep, oneMinus } from "three/tsl";
 import { landmarkToScreen } from "../../domain/hand-tracking";
-import { fingertip, isFingerExtended, PinchDetector } from "../../domain/hand-gestures";
+import {
+  extendedFingerCount,
+  fingertip,
+  isFingerExtended,
+  PinchDetector,
+} from "../../domain/hand-gestures";
+import { Trail } from "../../domain/trail";
 import type { Experience, ExperienceContext } from "./experience";
 
 const LIFETIME = 2.6; // s que tarda un punto en desvanecerse
-const MAX_PER_HAND = 280; // puntos vivos por mano (ring buffer)
+const MAX_PER_HAND = 280; // puntos vivos por mano (buffer circular)
 const MAX_DOTS = MAX_PER_HAND * 2; // instancias totales (2 manos)
 const MIN_STEP = 2.5; // px mínimos entre puntos
 const BRUSH = 13; // radio máximo del pincel (px)
-
-interface Dot {
-  x: number;
-  y: number;
-  age: number;
-}
+const OPEN_HAND_FINGERS = 4; // mano abierta (≥4 dedos extendidos) → borra el trazo
 
 export class DrawExperience implements Experience {
   readonly object = new Group();
@@ -40,7 +41,8 @@ export class DrawExperience implements Experience {
   private colorU = uniform(new Color(0xf45e61));
   private mat: MeshStandardNodeMaterial;
   private dots: InstancedMesh;
-  private trails: Dot[][] = [[], []];
+  // Buffer circular por mano (alloc-free, O(1)): ver `domain/trail`.
+  private trails = [new Trail(MAX_PER_HAND), new Trail(MAX_PER_HAND)];
   private pinch = [new PinchDetector(), new PinchDetector()];
   private wasDrawing = [false, false];
   private m = new Matrix4();
@@ -79,44 +81,46 @@ export class DrawExperience implements Experience {
       const hand = ctx.hands[i];
       const tip = fingertip(hand, "index");
       const pinching = this.pinch[i].update(hand);
-      const drawing = tip !== null && !pinching && isFingerExtended(hand, "index");
       const trail = this.trails[i];
+
+      // Mano abierta (palma a la cámara, ≥4 dedos extendidos) = goma de borrar:
+      // limpia el trazo de esa mano. Mientras esté abierta no pinta.
+      const open = extendedFingerCount(hand) >= OPEN_HAND_FINGERS;
+      if (open) trail.clear();
+
+      const drawing = !open && tip !== null && !pinching && isFingerExtended(hand, "index");
 
       if (drawing && tip) {
         const p = landmarkToScreen(tip, ctx.width, ctx.height, ctx.mirrored);
-        const last = trail[trail.length - 1];
-        if (!last || Math.hypot(p.x - last.x, p.y - last.y) >= MIN_STEP) {
+        const hasLast = trail.count > 0;
+        const lastX = hasLast ? trail.lastX() : 0;
+        const lastY = hasLast ? trail.lastY() : 0;
+        if (!hasLast || Math.hypot(p.x - lastX, p.y - lastY) >= MIN_STEP) {
           // Interpolar puntos intermedios para un trazo continuo aun a velocidad
           // alta (sin saltos entre frames).
-          if (last && this.wasDrawing[i]) {
-            const d = Math.hypot(p.x - last.x, p.y - last.y);
+          if (hasLast && this.wasDrawing[i]) {
+            const d = Math.hypot(p.x - lastX, p.y - lastY);
             const steps = Math.min(8, Math.floor(d / MIN_STEP));
             for (let s = 1; s < steps; s++) {
-              trail.push({
-                x: last.x + ((p.x - last.x) * s) / steps,
-                y: last.y + ((p.y - last.y) * s) / steps,
-                age: 0,
-              });
+              trail.push(lastX + ((p.x - lastX) * s) / steps, lastY + ((p.y - lastY) * s) / steps);
             }
           }
-          trail.push({ x: p.x, y: p.y, age: 0 });
-          while (trail.length > MAX_PER_HAND) trail.shift();
+          trail.push(p.x, p.y);
         }
       }
       this.wasDrawing[i] = drawing;
 
-      for (const d of trail) d.age += dt;
-      while (trail.length && trail[0].age > LIFETIME) trail.shift();
+      trail.advance(dt, LIFETIME);
     }
 
     // Volcar todos los puntos al InstancedMesh.
     let n = 0;
     for (const trail of this.trails) {
-      for (const d of trail) {
-        if (n >= MAX_DOTS) break;
-        const k = Math.max(0, 1 - d.age / LIFETIME);
+      for (let i = 0; i < trail.count && n < MAX_DOTS; i++) {
+        const idx = trail.index(i);
+        const k = Math.max(0, 1 - trail.age[idx] / LIFETIME);
         const r = BRUSH * (0.35 + 0.65 * k); // encoge con la edad
-        this.dots.setMatrixAt(n++, this.m.makeScale(r, r, 1).setPosition(d.x, d.y, 0));
+        this.dots.setMatrixAt(n++, this.m.makeScale(r, r, 1).setPosition(trail.x[idx], trail.y[idx], 0));
       }
     }
     for (let i = n; i < MAX_DOTS; i++) this.dots.setMatrixAt(i, this.hidden);
@@ -128,7 +132,7 @@ export class DrawExperience implements Experience {
   }
 
   reset(): void {
-    this.trails = [[], []];
+    for (const t of this.trails) t.clear();
     for (const d of this.pinch) d.reset();
     this.wasDrawing = [false, false];
   }

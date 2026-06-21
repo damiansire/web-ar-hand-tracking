@@ -34,6 +34,12 @@ export interface Experience {
   hud(): string | null;
   /** Reinicia el estado del efecto (sin recrear objetos). */
   reset(): void;
+  /**
+   * (Opcional) Ajusta la calidad/costo del efecto: `scale` ∈ (0,1] es la fracción
+   * de elementos (ej. partículas) a dibujar. Lo llama ARScene según el tier de
+   * calidad adaptativa. Una experiencia que no escala puede no implementarlo.
+   */
+  setQuality?(scale: number): void;
   /** Libera geometrías y materiales. */
   dispose(): void;
 }

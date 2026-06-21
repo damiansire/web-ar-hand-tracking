@@ -62,15 +62,30 @@ export function createCatchState(): CatchState {
 
 const DEFAULTS = { spawnEvery: 0.9, fallSpeed: 220, radius: 26 } as const;
 
+/** Atrapadas con las que la dificultad llega al máximo (rampa lineal y saturada). */
+const RAMP_FULL_AT = 40;
+
+/**
+ * Dificultad 0..1 en función del score: 0 al arrancar, 1 a partir de `RAMP_FULL_AT`
+ * atrapadas. Pura y determinista, así la rampa es testeable sin el render.
+ */
+export function difficultyAt(score: number): number {
+  return Math.min(1, Math.max(0, score) / RAMP_FULL_AT);
+}
+
 /**
  * Avanza un frame del juego (muta `state`): aparece un círculo cuando vence el
  * timer, todos caen, se atrapan los que tocan un catcher (suma puntos) y se
  * descartan los que salen por abajo (suma fallos). Devuelve los atrapados.
  */
 export function updateCatch(state: CatchState, cfg: CatchConfig): CatchOutcome {
-  const spawnEvery = cfg.spawnEvery ?? DEFAULTS.spawnEvery;
-  const fallSpeed = cfg.fallSpeed ?? DEFAULTS.fallSpeed;
   const radius = cfg.radius ?? DEFAULTS.radius;
+  // Rampa de dificultad: a más score, aparecen más seguido (hasta 45% menos de
+  // espera) y caen más rápido (hasta +90%). En score 0 el multiplicador es 1, así
+  // los defaults y los tests existentes quedan iguales.
+  const t = difficultyAt(state.score);
+  const spawnEvery = (cfg.spawnEvery ?? DEFAULTS.spawnEvery) * (1 - 0.45 * t);
+  const fallSpeed = (cfg.fallSpeed ?? DEFAULTS.fallSpeed) * (1 + 0.9 * t);
 
   // Spawn por tiempo.
   state.spawnTimer -= cfg.dt;

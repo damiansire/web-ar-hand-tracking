@@ -35,6 +35,7 @@ const MAX_CIRCLES = 48;
 const MAX_BURST = 96;
 const PALM_RADIUS = 52; // px a escala 1 (se ajusta por perspectiva)
 const TIP_RADIUS = 26;
+const MAX_MARKERS = 4; // 2 manos × (palma + punta del índice): un anillo por colisionador
 
 interface BurstParticle {
   x: number;
@@ -101,7 +102,7 @@ export class CatchExperience implements Experience {
     this.burstMesh = this.instanced(this.burstGeo, this.burstMat, MAX_BURST);
 
     this.markerMat = glowMaterial(0x8fc7ff).mat;
-    this.markers = this.instanced(this.markerGeo, this.markerMat, 2);
+    this.markers = this.instanced(this.markerGeo, this.markerMat, MAX_MARKERS);
 
     this.object.add(this.markers, this.circles, this.cores, this.burstMesh);
   }
@@ -123,26 +124,32 @@ export class CatchExperience implements Experience {
     this.circleColor.value.set(ctx.color);
     const { width: w, height: h } = ctx;
 
-    // Puntos de mano que pueden atrapar (palma + punta del índice).
+    // Puntos de mano que pueden atrapar (palma + punta del índice). Cada uno
+    // dibuja su propio anillo del tamaño de su radio de colisión, así se ve
+    // exactamente con qué y dónde se atrapa (antes sólo se veía la palma).
     this.catchers.length = 0;
     let markerCount = 0;
+    const addCatcher = (x: number, y: number, r: number): void => {
+      this.catchers.push({ x, y, r });
+      if (markerCount < MAX_MARKERS) {
+        this.markers.setMatrixAt(markerCount++, this.place(x, y, r, -1));
+      }
+    };
     for (let i = 0; i < ctx.hands.length && i < 2; i++) {
       const hand = ctx.hands[i];
       const scale = handPerspectiveScale(hand, w, h);
       const palm = hand?.[9];
       if (palm) {
         const p = landmarkToScreen(palm, w, h, ctx.mirrored);
-        const r = PALM_RADIUS * scale;
-        this.catchers.push({ x: p.x, y: p.y, r });
-        this.markers.setMatrixAt(markerCount++, this.place(p.x, p.y, r, -1));
+        addCatcher(p.x, p.y, PALM_RADIUS * scale);
       }
       const tip = fingertip(hand, "index");
       if (tip) {
         const p = landmarkToScreen(tip, w, h, ctx.mirrored);
-        this.catchers.push({ x: p.x, y: p.y, r: TIP_RADIUS * scale });
+        addCatcher(p.x, p.y, TIP_RADIUS * scale);
       }
     }
-    for (let i = markerCount; i < 2; i++) this.markers.setMatrixAt(i, this.hidden);
+    for (let i = markerCount; i < MAX_MARKERS; i++) this.markers.setMatrixAt(i, this.hidden);
     this.markers.instanceMatrix.needsUpdate = true;
 
     const out = updateCatch(this.state, {
@@ -204,7 +211,8 @@ export class CatchExperience implements Experience {
   }
 
   hud(): string | null {
-    return `${this.state.score}`;
+    // Atrapados y perdidos: el contador de fallos ya existía pero era invisible.
+    return `✓ ${this.state.score}   ✗ ${this.state.missed}`;
   }
 
   reset(): void {

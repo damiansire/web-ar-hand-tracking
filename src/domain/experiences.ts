@@ -1,12 +1,12 @@
 /**
  * Catálogo de "experiencias" creativas que el usuario puede elegir: desde las
  * figuras 3D clásicas hasta efectos interactivos al estilo de los filtros con IA
- * (dibujar con el dedo, atrapar círculos, galaxia/planeta, láseres entre manos).
+ * (dibujar con el dedo, atrapar círculos, cosmos/planeta, láseres entre manos).
  *
  * Data pura (sin Three.js): la usan tanto la UI (selector) como el render
  * (fábrica de experiencias). Cada modo decide internamente cómo usa las manos.
  */
-export type ExperienceKind = "figuras" | "dibujo" | "atrapar" | "galaxia" | "lasers";
+export type ExperienceKind = "figuras" | "dibujo" | "atrapar" | "cosmos" | "lasers";
 
 export interface ExperienceDef {
   readonly kind: ExperienceKind;
@@ -24,7 +24,7 @@ export const EXPERIENCES: readonly ExperienceDef[] = [
   {
     kind: "dibujo",
     label: "Dibujar",
-    hint: "Dibujá con el índice · juntá los dedos para mover sin pintar",
+    hint: "Dibujá con el índice · juntá los dedos para mover · abrí la mano para borrar",
   },
   {
     kind: "atrapar",
@@ -32,14 +32,14 @@ export const EXPERIENCES: readonly ExperienceDef[] = [
     hint: "Atrapá los círculos con la mano y sumá puntos",
   },
   {
-    kind: "galaxia",
-    label: "Galaxia",
-    hint: "Pellizcá para formar un planeta · soltá para el destello",
+    kind: "cosmos",
+    label: "Cosmos",
+    hint: "Mové la mano: la nebulosa orbita · pellizcá para formar un planeta · soltá para el destello",
   },
   {
     kind: "lasers",
     label: "Láseres",
-    hint: "Mostrá las dos manos: los dedos se conectan con rayos",
+    hint: "Tu mano se enciende en neón · mostrá las dos para rayos entre ellas",
   },
 ] as const;
 

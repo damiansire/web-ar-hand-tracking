@@ -1,6 +1,6 @@
 /**
  * Componente `<experience-selector>`: barra para elegir la experiencia creativa
- * (figuras, dibujar, atrapar, galaxia, láseres). Emite `experience-change` con
+ * (figuras, dibujar, atrapar, cosmos, láseres). Emite `experience-change` con
  * `detail.kind`. Encapsulado en Shadow DOM, mismo lenguaje visual que
  * `<figure-selector>` pero con botones algo más grandes (es el selector primario).
  */
@@ -17,7 +17,7 @@ const EN: Record<ExperienceKind, string> = {
   figuras: "3D shapes",
   dibujo: "Draw",
   atrapar: "Catch",
-  galaxia: "Galaxy",
+  cosmos: "Cosmos",
   lasers: "Lasers",
 };
 

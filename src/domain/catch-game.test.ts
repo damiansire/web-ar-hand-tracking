@@ -1,6 +1,7 @@
 import { describe, it, expect } from "vitest";
 import {
   createCatchState,
+  difficultyAt,
   updateCatch,
   type CatchState,
   type Catcher,
@@ -73,6 +74,33 @@ describe("updateCatch — caída", () => {
     updateCatch(s, { width: W, height: H, dt: 0.1, catchers: [], random: fixed(0) });
     expect(s.circles).toHaveLength(0);
     expect(s.missed).toBe(1);
+  });
+});
+
+describe("difficultyAt (rampa)", () => {
+  it("0 al arrancar, 1 saturada, lineal en el medio", () => {
+    expect(difficultyAt(0)).toBe(0);
+    expect(difficultyAt(20)).toBeCloseTo(0.5);
+    expect(difficultyAt(40)).toBe(1);
+    expect(difficultyAt(100)).toBe(1); // clamp
+    expect(difficultyAt(-5)).toBe(0); // clamp
+  });
+});
+
+describe("updateCatch — rampa de dificultad", () => {
+  it("con score alto los círculos caen más rápido y aparecen más seguido", () => {
+    // Score 0: spawn base.
+    const s0 = createCatchState();
+    updateCatch(s0, { width: W, height: H, dt: 0.016, catchers: [], random: fixed(0) });
+    const vy0 = s0.circles[0].vy;
+    const timer0 = s0.spawnTimer;
+
+    // Score alto (dificultad saturada): misma semilla, más rápido y más seguido.
+    const s1 = createCatchState();
+    s1.score = 40;
+    updateCatch(s1, { width: W, height: H, dt: 0.016, catchers: [], random: fixed(0) });
+    expect(s1.circles[0].vy).toBeGreaterThan(vy0);
+    expect(s1.spawnTimer).toBeLessThan(timer0);
   });
 });
 

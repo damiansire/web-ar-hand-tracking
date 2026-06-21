@@ -1,7 +1,9 @@
 /**
- * Experiencia "Láseres": los dedos se conectan con rayos. Dentro de cada mano se
- * unen la muñeca con las puntas y las puntas entre sí (silueta cableada); con las
- * dos manos presentes, además se tienden rayos punta-a-punta entre ambas.
+ * Experiencia "Láseres": el esqueleto real de la mano se enciende en neón. Cada
+ * rayo recorre un **hueso anatómico** (muñeca→nudillos→falanges→puntas), así los
+ * dedos NUNCA se unen entre sí: el cableado sigue la estructura de la mano, no un
+ * anillo entre puntas. Con las dos manos presentes, además se tienden rayos
+ * punta-a-punta entre ambas (el efecto "láseres entre manos").
  *
  * Para que se vean como haces neón (y no líneas de 1px), cada rayo es un plano
  * delgado orientado a lo largo del segmento (InstancedMesh, blending aditivo), con
@@ -14,6 +16,7 @@ import {
   DynamicDrawUsage,
   Euler,
   Group,
+  InstancedBufferAttribute,
   InstancedMesh,
   Matrix4,
   MeshStandardNodeMaterial,
@@ -21,7 +24,14 @@ import {
   Quaternion,
   Vector3,
 } from "three/webgpu";
-import { uniform, uv, vec2, smoothstep, oneMinus } from "three/tsl";
+import {
+  instancedDynamicBufferAttribute,
+  oneMinus,
+  smoothstep,
+  uniform,
+  uv,
+  vec2,
+} from "three/tsl";
 import { landmarkToScreen, type ScreenPoint } from "../../domain/hand-tracking";
 import { FINGERTIPS } from "../../domain/hand-gestures";
 import type { Experience, ExperienceContext } from "./experience";
@@ -34,17 +44,52 @@ const TIPS = [
   FINGERTIPS.ring,
   FINGERTIPS.pinky,
 ];
+// Huesos del modelo de 21 puntos de MediaPipe: cada par es un segmento real de la
+// mano (NO une puntas entre sí). Pulgar, índice, medio, anular, meñique y la base
+// de la palma. Trazar estos da el esqueleto anatómico en vez de una silueta.
+const BONES: readonly (readonly [number, number])[] = [
+  [0, 1], [1, 2], [2, 3], [3, 4], // pulgar
+  [0, 5], [5, 6], [6, 7], [7, 8], // índice
+  [5, 9], [9, 10], [10, 11], [11, 12], // medio
+  [9, 13], [13, 14], [14, 15], [15, 16], // anular
+  [13, 17], [17, 18], [18, 19], [19, 20], // meñique
+  [0, 17], // base de la palma (muñeca→nudillo del meñique)
+];
+// Color neón por dedo (paralelo a BONES): cada rayo que recorre un dedo va de su
+// propio color, así la mano se ve como un arcoíris de neón en vez de un solo tono.
+// El último (palma) cierra la gama. Los rayos ENTRE manos usan el color del usuario.
+const FINGER_COLORS = {
+  thumb: new Color(0xff2d6f), // rosa
+  index: new Color(0xff8a2d), // naranja
+  middle: new Color(0x7dff3b), // lima
+  ring: new Color(0x2dd4ff), // cian
+  pinky: new Color(0x9b6dff), // violeta
+  palm: new Color(0xffd23b), // ámbar
+} as const;
+const BEAM_HUES: readonly Color[] = [
+  FINGER_COLORS.thumb, FINGER_COLORS.thumb, FINGER_COLORS.thumb, FINGER_COLORS.thumb,
+  FINGER_COLORS.index, FINGER_COLORS.index, FINGER_COLORS.index, FINGER_COLORS.index,
+  FINGER_COLORS.middle, FINGER_COLORS.middle, FINGER_COLORS.middle, FINGER_COLORS.middle,
+  FINGER_COLORS.ring, FINGER_COLORS.ring, FINGER_COLORS.ring, FINGER_COLORS.ring,
+  FINGER_COLORS.pinky, FINGER_COLORS.pinky, FINGER_COLORS.pinky, FINGER_COLORS.pinky,
+  FINGER_COLORS.palm,
+];
 const MAX_BEAMS = 64;
 const MAX_NODES = 16;
 const BEAM_WIDTH = 5; // grosor del rayo (px)
+const WHITE = new Color(0xffffff); // reusado (evita alocar un Color por frame)
 
 export class LaserExperience implements Experience {
   readonly object = new Group();
 
   private beamGeo = new PlaneGeometry(1, 1);
-  private beamColor = uniform(new Color(0x6cf0ff));
+  // Color por rayo (RGB por instancia): se lee en el shader vía un nodo de buffer
+  // instanciado, el mismo mecanismo que usa Three para `instanceColor`. Permite un
+  // `colorNode`/`emissiveNode` distinto por rayo sin romper el draw call único.
+  private beamColorAttr = new InstancedBufferAttribute(new Float32Array(MAX_BEAMS * 3), 3);
   private beamMat: MeshStandardNodeMaterial;
   private beams: InstancedMesh;
+  private userCol = new Color(); // color del usuario para los rayos entre manos (reusado)
 
   private nodeGeo = new CircleGeometry(1, 16);
   private nodeColor = uniform(new Color(0xffffff));
@@ -59,6 +104,7 @@ export class LaserExperience implements Experience {
   private hidden = new Matrix4().makeScale(0, 0, 0);
 
   constructor() {
+    this.beamColorAttr.setUsage(DynamicDrawUsage);
     this.beamMat = new MeshStandardNodeMaterial({
       metalness: 0,
       roughness: 0.7,
@@ -66,8 +112,16 @@ export class LaserExperience implements Experience {
       transparent: true,
       depthWrite: false,
     });
-    this.beamMat.colorNode = this.beamColor;
-    this.beamMat.emissiveNode = this.beamColor;
+    // Color por instancia (un tono por rayo): vec3 del buffer instanciado, indexado
+    // automáticamente por instancia (igual que instanceMatrix).
+    const beamColorNode = instancedDynamicBufferAttribute<"vec3">(
+      this.beamColorAttr,
+      "vec3",
+      3,
+      0,
+    );
+    this.beamMat.colorNode = beamColorNode;
+    this.beamMat.emissiveNode = beamColorNode;
     // Núcleo neón: brillante en el eje del haz, se apaga hacia los bordes (uv.y).
     const ny = uv().y.sub(0.5).abs(); // 0 centro → 0.5 borde
     this.beamMat.opacityNode = oneMinus(smoothstep(0.1, 0.5, ny));
@@ -104,17 +158,20 @@ export class LaserExperience implements Experience {
 
   update(ctx: ExperienceContext): void {
     const { width: w, height: h } = ctx;
-    // Color base teñido por el usuario, con un parpadeo sutil de brillo.
+    // Parpadeo sutil de brillo compartido por todos los rayos.
     const flicker = 0.75 + 0.25 * Math.sin(ctx.time * 8);
-    this.beamColor.value.set(ctx.color).multiplyScalar(flicker);
-    this.nodeColor.value.set(ctx.color).lerp(new Color(0xffffff), 0.6);
+    // Los nodos (puntas/muñeca) siguen el color del usuario; los rayos van por dedo.
+    this.nodeColor.value.set(ctx.color).lerp(WHITE, 0.6);
+    this.userCol.set(ctx.color);
 
     const screen = (hand: readonly { x: number; y: number; z: number }[], idx: number): ScreenPoint =>
       landmarkToScreen(hand[idx], w, h, ctx.mirrored);
 
+    const cols = this.beamColorAttr.array as Float32Array;
     let beamCount = 0;
     let nodeCount = 0;
-    const beam = (a: ScreenPoint, b: ScreenPoint) => {
+    // `col` define el tono del rayo; se escribe en el buffer por-instancia con el flicker.
+    const beam = (a: ScreenPoint, b: ScreenPoint, col: Color) => {
       if (beamCount >= MAX_BEAMS) return;
       const dx = b.x - a.x;
       const dy = b.y - a.y;
@@ -123,6 +180,10 @@ export class LaserExperience implements Experience {
       this.euler.set(0, 0, Math.atan2(dy, dx));
       this.quat.setFromEuler(this.euler);
       this.scl.set(len, BEAM_WIDTH, 1);
+      const o = beamCount * 3;
+      cols[o] = col.r * flicker;
+      cols[o + 1] = col.g * flicker;
+      cols[o + 2] = col.b * flicker;
       this.beams.setMatrixAt(beamCount++, this.mat.compose(this.pos, this.quat, this.scl));
     };
     const node = (p: ScreenPoint, r: number) => {
@@ -134,23 +195,27 @@ export class LaserExperience implements Experience {
     for (let i = 0; i < ctx.hands.length && i < 2; i++) {
       const hand = ctx.hands[i];
       if (!hand || hand.length < 21) continue;
-      const wrist = screen(hand, WRIST);
-      const tips = TIPS.map((t) => screen(hand, t));
-      presentTips[i] = tips;
-      for (const t of tips) beam(wrist, t); // radios desde la muñeca
-      for (let k = 0; k < tips.length; k++) beam(tips[k], tips[(k + 1) % tips.length]); // anillo
-      node(wrist, 8);
-      for (const t of tips) node(t, 10);
+      presentTips[i] = TIPS.map((t) => screen(hand, t));
+      // Rayos a lo largo de los huesos reales (sin unir puntas entre sí), un tono por dedo.
+      for (let bi = 0; bi < BONES.length; bi++) {
+        const [a, b] = BONES[bi];
+        beam(screen(hand, a), screen(hand, b), BEAM_HUES[bi]);
+      }
+      node(screen(hand, WRIST), 8);
+      for (const t of TIPS) node(screen(hand, t), 9);
     }
 
-    // Rayos entre las dos manos (punta con punta).
+    // Rayos entre las dos manos (punta con punta), en el color del usuario.
     if (presentTips[0] && presentTips[1]) {
-      for (let k = 0; k < TIPS.length; k++) beam(presentTips[0][k], presentTips[1][k]);
+      for (let k = 0; k < TIPS.length; k++) {
+        beam(presentTips[0][k], presentTips[1][k], this.userCol);
+      }
     }
 
     for (let i = beamCount; i < MAX_BEAMS; i++) this.beams.setMatrixAt(i, this.hidden);
     for (let i = nodeCount; i < MAX_NODES; i++) this.nodes.setMatrixAt(i, this.hidden);
     this.beams.instanceMatrix.needsUpdate = true;
+    this.beamColorAttr.needsUpdate = true;
     this.nodes.instanceMatrix.needsUpdate = true;
   }
 

@@ -12,7 +12,7 @@ describe("experiences", () => {
   });
 
   it("isExperienceKind valida correctamente", () => {
-    expect(isExperienceKind("galaxia")).toBe(true);
+    expect(isExperienceKind("cosmos")).toBe(true);
     expect(isExperienceKind("figuras")).toBe(true);
     expect(isExperienceKind("inexistente")).toBe(false);
     expect(isExperienceKind(7)).toBe(false);

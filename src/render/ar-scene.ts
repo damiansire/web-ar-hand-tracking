@@ -42,6 +42,7 @@ import {
   OrthographicCamera,
   PlaneGeometry,
   Quaternion,
+  RenderPipeline,
   Scene,
   SphereGeometry,
   TorusGeometry,
@@ -54,10 +55,14 @@ import {
   dot,
   normalWorld,
   oneMinus,
+  pass,
   positionWorld,
   pow,
   uniform,
+  vec4,
 } from "three/tsl";
+import { bloom } from "three/addons/tsl/display/BloomNode.js";
+import { PerfGovernor, initialTierIndex } from "../domain/perf-governor";
 import type { FigureKind } from "../domain/figures";
 import {
   anchorOf,
@@ -124,6 +129,20 @@ export class ARScene {
   private camera: OrthographicCamera;
   /** Backend efectivo, para diagnóstico ("webgpu" o "webgl"). */
   readonly backend: "webgpu" | "webgl";
+
+  // Post-proceso de bloom (glow). Camino WebGPU/TSL (NO UnrealBloomPass, que no
+  // soporta fondo transparente). `null` si falló la inicialización → render
+  // directo (nunca queda negro). Componemos sumando el glow al color de la escena
+  // y reusando el alpha de la escena, así el canvas sigue siendo overlay del video.
+  private post: RenderPipeline | null = null;
+  private bloomEnabled = true;
+  private bloomInFlight = false; // evita encolar renders de bloom (anti pile-up)
+
+  // Calidad adaptativa: baja resolución/bloom/partículas si el FPS cae (y sube si
+  // sobra), para ir fluido en cualquier equipo. `dprCap` es el tope de
+  // devicePixelRatio del tier actual; lo aplica `resize()`.
+  private governor: PerfGovernor;
+  private dprCap = 2;
 
   /** Canvas efectivamente usado (puede diferir si hubo fallback de WebGPU a WebGL2). */
   get canvas(): HTMLCanvasElement {
@@ -247,7 +266,10 @@ export class ARScene {
       this.scene.add(edges);
       this.edges.push(edges);
       this.slots.push({
-        smoother: new Vec3Smoother({ predictSeconds: 0.045 }),
+        // Tracking tenso: menos lag en reposo (minCutoff/beta más altos) y más
+        // predicción hacia adelante para cancelar la latencia de inferencia (~1
+        // intervalo a 30 fps), así la figura "engancha" la mano sin arrastre visible.
+        smoother: new Vec3Smoother({ minCutoff: 1.6, beta: 0.05, predictSeconds: 0.075 }),
         x: 0,
         y: 0,
         s: 1,
@@ -283,6 +305,18 @@ export class ARScene {
     this.occluderMesh.visible = false;
     this.scene.add(this.occluderMesh);
 
+    // Tier inicial conservador según el dispositivo; el governor lo ajusta en vivo.
+    const ua = typeof navigator !== "undefined" ? navigator.userAgent : "";
+    this.governor = new PerfGovernor(
+      initialTierIndex({
+        mobile: /Mobi|Android|iPhone|iPad|iPod/i.test(ua),
+        cores: (typeof navigator !== "undefined" && navigator.hardwareConcurrency) || 4,
+        hasWebGPU: typeof navigator !== "undefined" && "gpu" in navigator,
+      }),
+    );
+    this.dprCap = this.governor.tier.pixelRatioCap;
+    this.bloomEnabled = this.governor.tier.bloom;
+
     this.resize();
   }
 
@@ -297,6 +331,7 @@ export class ARScene {
       try {
         const scene = new ARScene(canvas, true);
         await scene.renderer.init();
+        scene.initPostProcessing();
         return scene;
       } catch {
         // El adapter existía pero la init de WebGPU falló (driver, feature, etc.).
@@ -307,6 +342,7 @@ export class ARScene {
     }
     const scene = new ARScene(canvas, false);
     await scene.renderer.init();
+    scene.initPostProcessing();
     return scene;
   }
 
@@ -335,6 +371,67 @@ export class ARScene {
     const fresnel = pow(oneMinus(dot(normalWorld, viewDir).clamp(0, 1)), 3.0);
     mat.emissiveNode = color(this.colorUniform).mul(fresnel).mul(0.6);
     return mat;
+  }
+
+  /**
+   * Arma el pipeline de bloom (TSL): glow del color de la escena sumado de vuelta
+   * al color. Si algo falla (backend/versión), deja `post=null` y se renderiza
+   * directo (sin glow, pero nunca negro). Se llama tras `renderer.init()`.
+   */
+  private initPostProcessing(): void {
+    try {
+      const scenePass = pass(this.scene, this.camera);
+      const bloomPass = bloom(scenePass, 0.9, 0.5, 0.0);
+      // CLAVE para el overlay sobre video: por defecto el post-proceso saca alpha=1
+      // (canvas opaco → tapa el video de negro). Componemos a mano: glow sumado al
+      // color, y alpha = max(alpha de la escena, brillo del glow). Así las zonas sin
+      // partículas ni glow quedan transparentes (se ve el video) y el glow se
+      // compone como luz translúcida encima.
+      const rgb = scenePass.add(bloomPass);
+      const glowLum = bloomPass.r.max(bloomPass.g).max(bloomPass.b);
+      const alpha = scenePass.a.max(glowLum).clamp(0, 1);
+      const post = new RenderPipeline(this.renderer);
+      post.outputNode = vec4(rgb.rgb, alpha);
+      this.post = post;
+    } catch {
+      this.post = null; // sin bloom: render directo
+    }
+  }
+
+  /** Activa/desactiva el glow (bloom). */
+  setBloom(enabled: boolean): void {
+    this.bloomEnabled = enabled;
+  }
+
+  /** Aplica el tier de calidad actual del governor (resolución, bloom, partículas). */
+  private applyTier(): void {
+    const t = this.governor.tier;
+    this.dprCap = t.pixelRatioCap;
+    this.bloomEnabled = t.bloom;
+    this.resize();
+    this.experience?.setQuality?.(t.particleScale);
+  }
+
+  /**
+   * Render del frame. El bloom se aplica SOLO en modos de "luz" (cuando hay una
+   * experiencia activa): ahí el glow es el efecto buscado y todo lo que se dibuja
+   * es emisivo. En el modo "Figuras" (geometría sólida con oclusión) se rendea
+   * directo, porque la composición de alpha del bloom volvería el sólido
+   * semi-transparente. `render()` puede ser async (backend WebGPU): lo envolvemos
+   * con un guard que descarta el frame si hay uno en vuelo (no bloquea ni encola
+   * en backends lentos como SwiftShader).
+   */
+  private present(): void {
+    const useBloom = this.post !== null && this.bloomEnabled && this.experience !== null;
+    if (useBloom) {
+      if (this.bloomInFlight) return;
+      this.bloomInFlight = true;
+      void Promise.resolve(this.post!.render()).finally(() => {
+        this.bloomInFlight = false;
+      });
+    } else {
+      this.renderer.render(this.scene, this.camera);
+    }
   }
 
   setFigure(kind: FigureKind): void {
@@ -401,6 +498,7 @@ export class ARScene {
     if (exp) {
       this.experience = exp;
       this.scene.add(exp.object);
+      exp.setQuality?.(this.governor.tier.particleScale); // hereda el presupuesto actual
     } else {
       // Volvemos a figuras: re-mostrar el InstancedMesh de figuras.
       this.figures.visible = true;
@@ -505,7 +603,7 @@ export class ARScene {
     const canvas = this.renderer.domElement;
     const w = canvas.clientWidth || 640;
     const h = canvas.clientHeight || 480;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, 2));
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio, this.dprCap));
     this.renderer.setSize(w, h, false);
     this.camera.right = w;
     this.camera.bottom = h;
@@ -555,6 +653,9 @@ export class ARScene {
     this.lastTime = time;
     this.timeAcc += dt;
 
+    // Calidad adaptativa: si el FPS cambió de tier, reaplicamos calidad.
+    if (this.governor.sample(dt)) this.applyTier();
+
     // Modo experiencia creativa: ocultamos el pipeline de figuras y delegamos el
     // frame en la experiencia activa (que maneja sus propios objetos en la escena).
     if (this.experience) {
@@ -574,7 +675,7 @@ export class ARScene {
       ctx.color = this.currentColor;
       this.experience.update(ctx);
       this.onHud?.(this.experience.hud());
-      this.renderer.render(this.scene, this.camera);
+      this.present();
       return;
     }
     if (!this.figures.visible) this.figures.visible = true;
@@ -726,11 +827,12 @@ export class ARScene {
       this.occluderMesh.visible = false;
     }
 
-    this.renderer.render(this.scene, this.camera);
+    this.present();
   }
 
   dispose(): void {
     this.stop();
+    this.post?.dispose();
     if (this.experience) {
       this.scene.remove(this.experience.object);
       this.experience.dispose();

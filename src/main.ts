@@ -16,6 +16,7 @@ import { DEFAULT_FIGURE, type FigureKind } from "./domain/figures";
 import { experienceHint, type ExperienceKind } from "./domain/experiences";
 import { requestCamera, CameraError } from "./camera/camera";
 import { HandTracker } from "./inference/hand-tracker";
+import { FrameRateLimiter } from "./domain/frame-limiter";
 import type { ARScene } from "./render/ar-scene";
 import { permissionScreen, loadingScreen, errorScreen } from "./ui/screens";
 import { arView } from "./ui/ar-view";
@@ -245,13 +246,25 @@ async function renderAR(): Promise<void> {
 }
 
 /**
+ * Cadencia objetivo de la INFERENCIA (no del render). El render corre a 60+ fps
+ * en su propio loop; la detección de manos a 30 fps es perceptualmente idéntica
+ * porque el suavizado predictivo One-Euro interpola/extrapola entre updates (ver
+ * `domain/smoothing`). Capar acá libera ~la mitad del trabajo de MediaPipe —el
+ * consumidor #1 de CPU/GPU— en equipos capaces, sin pérdida visible.
+ */
+const INFERENCE_FPS = 30;
+
+/**
  * Bombea cuadros del video al tracker. Usa `requestVideoFrameCallback` cuando
  * existe (sólo dispara con cuadros nuevos del video) y cae a `requestAnimationFrame`
- * si no está disponible.
+ * si no está disponible. Limita la cadencia de inferencia a `INFERENCE_FPS`
+ * (desacoplada del render): en una fuente/GPU rápida, saltea los cuadros que
+ * sobran en vez de inferir en todos.
  */
 function startFrameLoop(video: HTMLVideoElement): void {
   frameActive = true;
   const hasRVFC = "requestVideoFrameCallback" in video;
+  const limiter = new FrameRateLimiter(INFERENCE_FPS);
 
   const schedule = () => {
     if (!frameActive) return; // `cleanup()` corta el loop
@@ -264,7 +277,9 @@ function startFrameLoop(video: HTMLVideoElement): void {
 
   const pump = (now: number) => {
     if (!frameActive) return;
-    if (video.readyState >= 2) {
+    // Capamos la inferencia a la cadencia objetivo; el back-pressure del tracker
+    // sigue dropeando si además hay un cuadro en vuelo (doble red).
+    if (video.readyState >= 2 && limiter.shouldProcess(now)) {
       void tracker?.track(video, now);
     }
     schedule();
