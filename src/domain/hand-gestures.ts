@@ -63,7 +63,9 @@ export function fingertip(
  * ~0.2–0.5 cuando los dedos se tocan (pinza), >1 con la mano abierta. Devuelve
  * `null` si la mano no es válida.
  */
-export function pinchRatio(hand: readonly NormalizedLandmark[] | undefined): number | null {
+export function pinchRatio(
+  hand: readonly NormalizedLandmark[] | undefined,
+): number | null {
   const thumb = hand?.[FINGERTIPS.thumb];
   const index = hand?.[FINGERTIPS.index];
   const span = handSpan(hand);

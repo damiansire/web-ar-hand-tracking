@@ -8,7 +8,13 @@ import {
   type MutVec3,
 } from "./particle-field";
 
-const attractorAt = (x: number, y: number, z = 0, strength = 1e6, swirl = 0): Attractor => ({
+const attractorAt = (
+  x: number,
+  y: number,
+  z = 0,
+  strength = 1e6,
+  swirl = 0,
+): Attractor => ({
   x,
   y,
   z,

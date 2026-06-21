@@ -21,13 +21,13 @@ La app trae **5 experiencias** creativas que se eligen desde el selector inferio
 (el diferenciador frente a la versión original p5.js + ml5.js, que sólo seguía la
 mano con una figura). Cada modo decide internamente cómo usa las manos:
 
-| Modo            | Qué hace                                                                            |
-| --------------- | ----------------------------------------------------------------------------------- |
-| **Figuras 3D**  | Mové la mano: la figura te sigue.                                                    |
-| **Dibujar**     | Dibujá con el índice · juntá los dedos para mover · abrí la mano para borrar.        |
-| **Atrapar**     | Atrapá los círculos con la mano y sumá puntos.                                       |
-| **Cosmos**      | Mové la mano: la nebulosa orbita · pellizcá para formar un planeta · soltá para el destello. |
-| **Láseres**     | Tu mano se enciende en neón · mostrá las dos para rayos entre ellas.                 |
+| Modo           | Qué hace                                                                                     |
+| -------------- | -------------------------------------------------------------------------------------------- |
+| **Figuras 3D** | Mové la mano: la figura te sigue.                                                            |
+| **Dibujar**    | Dibujá con el índice · juntá los dedos para mover · abrí la mano para borrar.                |
+| **Atrapar**    | Atrapá los círculos con la mano y sumá puntos.                                               |
+| **Cosmos**     | Mové la mano: la nebulosa orbita · pellizcá para formar un planeta · soltá para el destello. |
+| **Láseres**    | Tu mano se enciende en neón · mostrá las dos para rayos entre ellas.                         |
 
 > Esta tabla refleja `EXPERIENCES` en
 > [`src/domain/experiences.ts`](src/domain/experiences.ts) (labels + hints); si

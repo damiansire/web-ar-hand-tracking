@@ -16,7 +16,12 @@ describe("convexHull", () => {
   it("devuelve los puntos tal cual si hay menos de 3", () => {
     expect(convexHull([])).toEqual([]);
     expect(convexHull([{ x: 1, y: 1 }])).toEqual([{ x: 1, y: 1 }]);
-    expect(convexHull([{ x: 1, y: 1 }, { x: 2, y: 2 }]).length).toBe(2);
+    expect(
+      convexHull([
+        { x: 1, y: 1 },
+        { x: 2, y: 2 },
+      ]).length,
+    ).toBe(2);
   });
 
   it("de un cuadrado con puntos internos devuelve sólo las 4 esquinas", () => {

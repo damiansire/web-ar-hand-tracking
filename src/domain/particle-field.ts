@@ -129,7 +129,12 @@ export class ParticleField {
    * Siembra el campo dentro de la caja. `rand` se inyecta (default Math.random)
    * para poder testear con una secuencia determinista.
    */
-  seed(width: number, height: number, depth: number, rand: () => number = Math.random): void {
+  seed(
+    width: number,
+    height: number,
+    depth: number,
+    rand: () => number = Math.random,
+  ): void {
     for (let i = 0; i < this.count; i++) {
       this.x[i] = rand() * width;
       this.y[i] = rand() * height;
@@ -161,7 +166,14 @@ export class ParticleField {
     const damp = Math.max(0, 1 - drag * dt);
     for (let i = 0; i < this.count; i++) {
       if (attractor) {
-        const dist = gravitate(this.acc, this.x[i], this.y[i], this.z[i], attractor, REF_SOFTENING);
+        const dist = gravitate(
+          this.acc,
+          this.x[i],
+          this.y[i],
+          this.z[i],
+          attractor,
+          REF_SOFTENING,
+        );
         const radialMag = Math.hypot(this.acc.x, this.acc.y);
         addSwirl(this.acc, this.x[i], this.y[i], attractor, radialMag);
         // z tiende suave a 0 cuando hay atractor (el disco se aplana hacia la mano).
@@ -180,7 +192,8 @@ export class ParticleField {
 
       // Tope de velocidad (estabilidad numérica). Comparamos al cuadrado y sólo
       // sacamos la raíz si hace falta capar → un sqrt menos por partícula/frame.
-      const spSq = this.vx[i] * this.vx[i] + this.vy[i] * this.vy[i] + this.vz[i] * this.vz[i];
+      const spSq =
+        this.vx[i] * this.vx[i] + this.vy[i] * this.vy[i] + this.vz[i] * this.vz[i];
       if (spSq > MAX_SPEED * MAX_SPEED) {
         const k = MAX_SPEED / Math.sqrt(spSq);
         this.vx[i] *= k;

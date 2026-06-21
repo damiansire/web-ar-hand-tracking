@@ -1,9 +1,5 @@
 import { describe, it, expect } from "vitest";
-import {
-  PerfGovernor,
-  QUALITY_TIERS,
-  initialTierIndex,
-} from "./perf-governor";
+import { PerfGovernor, QUALITY_TIERS, initialTierIndex } from "./perf-governor";
 
 /** Alimenta N frames a un FPS dado y devuelve cuántas veces cambió el tier. */
 function feed(g: PerfGovernor, fps: number, frames: number): number {
@@ -28,8 +24,12 @@ describe("initialTierIndex", () => {
 describe("QUALITY_TIERS", () => {
   it("están ordenados de mayor a menor costo (pixelRatio y partículas decrecen)", () => {
     for (let i = 1; i < QUALITY_TIERS.length; i++) {
-      expect(QUALITY_TIERS[i].pixelRatioCap).toBeLessThanOrEqual(QUALITY_TIERS[i - 1].pixelRatioCap);
-      expect(QUALITY_TIERS[i].particleScale).toBeLessThanOrEqual(QUALITY_TIERS[i - 1].particleScale);
+      expect(QUALITY_TIERS[i].pixelRatioCap).toBeLessThanOrEqual(
+        QUALITY_TIERS[i - 1].pixelRatioCap,
+      );
+      expect(QUALITY_TIERS[i].particleScale).toBeLessThanOrEqual(
+        QUALITY_TIERS[i - 1].particleScale,
+      );
     }
   });
 });

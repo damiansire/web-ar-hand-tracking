@@ -296,7 +296,10 @@ export class ARScene {
     this.occluderGeo.setIndex(new BufferAttribute(this.occluderIdx, 1));
     // DoubleSide: la silueta puede quedar con winding invertido (pantalla Y
     // hacia abajo); sin esto se descartaría por backface culling y no ocluiría.
-    const occluderMat = new MeshBasicNodeMaterial({ colorWrite: false, side: DoubleSide });
+    const occluderMat = new MeshBasicNodeMaterial({
+      colorWrite: false,
+      side: DoubleSide,
+    });
     this.occluderMesh = new InstancedMesh(this.occluderGeo, occluderMat, 1);
     this.occluderMesh.setMatrixAt(0, new Matrix4());
     this.occluderMesh.instanceMatrix.needsUpdate = true;

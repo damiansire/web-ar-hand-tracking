@@ -75,7 +75,9 @@ export class ExperienceSelector extends HTMLElement {
     this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
       b.setAttribute("aria-pressed", String(b.dataset.kind === kind));
     });
-    this.dispatchEvent(new CustomEvent<ExperienceKind>("experience-change", { detail: kind }));
+    this.dispatchEvent(
+      new CustomEvent<ExperienceKind>("experience-change", { detail: kind }),
+    );
   }
 }
 

@@ -61,7 +61,9 @@ function fakeVideo(): HTMLVideoElement {
 
 /** Bitmap fake con close() espiable. */
 function fakeBitmap() {
-  return { close: vi.fn() } as unknown as ImageBitmap & { close: ReturnType<typeof vi.fn> };
+  return { close: vi.fn() } as unknown as ImageBitmap & {
+    close: ReturnType<typeof vi.fn>;
+  };
 }
 
 describe("HandTracker", () => {
@@ -111,7 +113,9 @@ describe("HandTracker", () => {
   });
 
   it("track(): dropea (no postea frame) si el gate está ocupado", async () => {
-    const capture = vi.fn(async () => fakeBitmap()) as unknown as typeof createImageBitmap;
+    const capture = vi.fn(async () =>
+      fakeBitmap(),
+    ) as unknown as typeof createImageBitmap;
     const { tracker, worker } = makeTracker(capture);
     const r = tracker.init();
     worker().emit({ type: "ready", delegate: "GPU" });
@@ -165,7 +169,9 @@ describe("HandTracker", () => {
   });
 
   it("result: libera el gate y entrega los landmarks al listener", async () => {
-    const capture = vi.fn(async () => fakeBitmap()) as unknown as typeof createImageBitmap;
+    const capture = vi.fn(async () =>
+      fakeBitmap(),
+    ) as unknown as typeof createImageBitmap;
     const { tracker, worker } = makeTracker(capture);
     const r = tracker.init();
     worker().emit({ type: "ready", delegate: "GPU" });
@@ -190,7 +196,9 @@ describe("HandTracker", () => {
   });
 
   it("detect-error: libera el gate sin notificar al listener", async () => {
-    const capture = vi.fn(async () => fakeBitmap()) as unknown as typeof createImageBitmap;
+    const capture = vi.fn(async () =>
+      fakeBitmap(),
+    ) as unknown as typeof createImageBitmap;
     const { tracker, worker } = makeTracker(capture);
     const r = tracker.init();
     worker().emit({ type: "ready", delegate: "GPU" });

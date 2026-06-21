@@ -88,7 +88,8 @@ export class DrawExperience implements Experience {
       const open = extendedFingerCount(hand) >= OPEN_HAND_FINGERS;
       if (open) trail.clear();
 
-      const drawing = !open && tip !== null && !pinching && isFingerExtended(hand, "index");
+      const drawing =
+        !open && tip !== null && !pinching && isFingerExtended(hand, "index");
 
       if (drawing && tip) {
         const p = landmarkToScreen(tip, ctx.width, ctx.height, ctx.mirrored);
@@ -102,7 +103,10 @@ export class DrawExperience implements Experience {
             const d = Math.hypot(p.x - lastX, p.y - lastY);
             const steps = Math.min(8, Math.floor(d / MIN_STEP));
             for (let s = 1; s < steps; s++) {
-              trail.push(lastX + ((p.x - lastX) * s) / steps, lastY + ((p.y - lastY) * s) / steps);
+              trail.push(
+                lastX + ((p.x - lastX) * s) / steps,
+                lastY + ((p.y - lastY) * s) / steps,
+              );
             }
           }
           trail.push(p.x, p.y);
@@ -120,7 +124,10 @@ export class DrawExperience implements Experience {
         const idx = trail.index(i);
         const k = Math.max(0, 1 - trail.age[idx] / LIFETIME);
         const r = BRUSH * (0.35 + 0.65 * k); // encoge con la edad
-        this.dots.setMatrixAt(n++, this.m.makeScale(r, r, 1).setPosition(trail.x[idx], trail.y[idx], 0));
+        this.dots.setMatrixAt(
+          n++,
+          this.m.makeScale(r, r, 1).setPosition(trail.x[idx], trail.y[idx], 0),
+        );
       }
     }
     for (let i = n; i < MAX_DOTS; i++) this.dots.setMatrixAt(i, this.hidden);

@@ -179,7 +179,13 @@ export class CosmicExperience implements Experience {
     let attractor: Attractor | null = null;
     if (anchor) {
       const cfg = pinching ? PINCH : AMBIENT;
-      attractor = { x: this.cx, y: this.cy, z: 0, strength: cfg.strength, swirl: cfg.swirl };
+      attractor = {
+        x: this.cx,
+        y: this.cy,
+        z: 0,
+        strength: cfg.strength,
+        swirl: cfg.swirl,
+      };
     }
 
     // Flanco de bajada (soltar): destello + dispersión.
@@ -240,7 +246,8 @@ export class CosmicExperience implements Experience {
     for (const l of this.layers) {
       const total = l.end - l.start;
       const drawn = Math.floor(total * this.qScale);
-      for (let local = drawn; local < total; local++) l.mesh.setMatrixAt(local, this.hidden);
+      for (let local = drawn; local < total; local++)
+        l.mesh.setMatrixAt(local, this.hidden);
       l.mesh.instanceMatrix.needsUpdate = true;
     }
   }

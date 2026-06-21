@@ -149,7 +149,8 @@ export class CatchExperience implements Experience {
         addCatcher(p.x, p.y, TIP_RADIUS * scale);
       }
     }
-    for (let i = markerCount; i < MAX_MARKERS; i++) this.markers.setMatrixAt(i, this.hidden);
+    for (let i = markerCount; i < MAX_MARKERS; i++)
+      this.markers.setMatrixAt(i, this.hidden);
     this.markers.instanceMatrix.needsUpdate = true;
 
     const out = updateCatch(this.state, {
@@ -184,7 +185,13 @@ export class CatchExperience implements Experience {
     for (let k = 0; k < n && this.burst.length < MAX_BURST; k++) {
       const a = (k / n) * Math.PI * 2;
       const speed = 140 + Math.random() * 180;
-      this.burst.push({ x, y, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed, life: 1 });
+      this.burst.push({
+        x,
+        y,
+        vx: Math.cos(a) * speed,
+        vy: Math.sin(a) * speed,
+        life: 1,
+      });
     }
   }
 
@@ -201,7 +208,10 @@ export class CatchExperience implements Experience {
     this.burst = alive;
     for (let i = 0; i < MAX_BURST; i++) {
       const p = this.burst[i];
-      this.burstMesh.setMatrixAt(i, p ? this.place(p.x, p.y, 7 * p.life + 1, 2) : this.hidden);
+      this.burstMesh.setMatrixAt(
+        i,
+        p ? this.place(p.x, p.y, 7 * p.life + 1, 2) : this.hidden,
+      );
     }
     this.burstMesh.instanceMatrix.needsUpdate = true;
   }

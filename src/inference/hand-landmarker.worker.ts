@@ -53,7 +53,10 @@ type WorkerResponse =
 // Interfaz mínima de lo que usamos de MediaPipe, en vez de `any`. El bundle CJS
 // no trae tipos en este worker clásico, pero acotamos la superficie que tocamos.
 interface HandLandmarkerLike {
-  detectForVideo(bitmap: ImageBitmap, timestamp: number): { landmarks?: NormalizedLandmark[][] };
+  detectForVideo(
+    bitmap: ImageBitmap,
+    timestamp: number,
+  ): { landmarks?: NormalizedLandmark[][] };
 }
 interface MediaPipeModule {
   FilesetResolver: { forVisionTasks(wasmBase: string): Promise<unknown> };

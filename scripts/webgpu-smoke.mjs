@@ -106,7 +106,8 @@ console.log(`[server] dist servido en ${base}`);
 const fs = await import("node:fs/promises");
 const assets = await fs.readdir(join(DIST, "assets"));
 const arSceneFile = assets.find((f) => /^ar-scene-.*\.js$/.test(f));
-if (!arSceneFile) throw new Error("No se encontró el chunk ar-scene-*.js en dist/assets.");
+if (!arSceneFile)
+  throw new Error("No se encontró el chunk ar-scene-*.js en dist/assets.");
 console.log(`[build] chunk del renderer: assets/${arSceneFile}`);
 
 const launchArgs = [
@@ -148,7 +149,9 @@ const result = await page.evaluate(async (arScenePath) => {
       if (adapter) {
         let info = null;
         try {
-          info = adapter.info ?? (adapter.requestAdapterInfo ? await adapter.requestAdapterInfo() : null);
+          info =
+            adapter.info ??
+            (adapter.requestAdapterInfo ? await adapter.requestAdapterInfo() : null);
         } catch {
           /* algunos builds no exponen info */
         }
@@ -188,7 +191,7 @@ const result = await page.evaluate(async (arScenePath) => {
       ? "WebGPUBackend"
       : scene.renderer?.backend?.isWebGLBackend
         ? "WebGLBackend"
-        : scene.renderer?.backend?.constructor?.name ?? "(desconocido)";
+        : (scene.renderer?.backend?.constructor?.name ?? "(desconocido)");
 
     // Color de fondo NO transparente para verificar que el renderer pinta:
     // setClearColor en el constructor es alpha 0; lo subimos para el test.

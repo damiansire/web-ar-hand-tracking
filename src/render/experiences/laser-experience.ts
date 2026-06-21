@@ -48,11 +48,26 @@ const TIPS = [
 // mano (NO une puntas entre sí). Pulgar, índice, medio, anular, meñique y la base
 // de la palma. Trazar estos da el esqueleto anatómico en vez de una silueta.
 const BONES: readonly (readonly [number, number])[] = [
-  [0, 1], [1, 2], [2, 3], [3, 4], // pulgar
-  [0, 5], [5, 6], [6, 7], [7, 8], // índice
-  [5, 9], [9, 10], [10, 11], [11, 12], // medio
-  [9, 13], [13, 14], [14, 15], [15, 16], // anular
-  [13, 17], [17, 18], [18, 19], [19, 20], // meñique
+  [0, 1],
+  [1, 2],
+  [2, 3],
+  [3, 4], // pulgar
+  [0, 5],
+  [5, 6],
+  [6, 7],
+  [7, 8], // índice
+  [5, 9],
+  [9, 10],
+  [10, 11],
+  [11, 12], // medio
+  [9, 13],
+  [13, 14],
+  [14, 15],
+  [15, 16], // anular
+  [13, 17],
+  [17, 18],
+  [18, 19],
+  [19, 20], // meñique
   [0, 17], // base de la palma (muñeca→nudillo del meñique)
 ];
 // Color neón por dedo (paralelo a BONES): cada rayo que recorre un dedo va de su
@@ -67,11 +82,26 @@ const FINGER_COLORS = {
   palm: new Color(0xffd23b), // ámbar
 } as const;
 const BEAM_HUES: readonly Color[] = [
-  FINGER_COLORS.thumb, FINGER_COLORS.thumb, FINGER_COLORS.thumb, FINGER_COLORS.thumb,
-  FINGER_COLORS.index, FINGER_COLORS.index, FINGER_COLORS.index, FINGER_COLORS.index,
-  FINGER_COLORS.middle, FINGER_COLORS.middle, FINGER_COLORS.middle, FINGER_COLORS.middle,
-  FINGER_COLORS.ring, FINGER_COLORS.ring, FINGER_COLORS.ring, FINGER_COLORS.ring,
-  FINGER_COLORS.pinky, FINGER_COLORS.pinky, FINGER_COLORS.pinky, FINGER_COLORS.pinky,
+  FINGER_COLORS.thumb,
+  FINGER_COLORS.thumb,
+  FINGER_COLORS.thumb,
+  FINGER_COLORS.thumb,
+  FINGER_COLORS.index,
+  FINGER_COLORS.index,
+  FINGER_COLORS.index,
+  FINGER_COLORS.index,
+  FINGER_COLORS.middle,
+  FINGER_COLORS.middle,
+  FINGER_COLORS.middle,
+  FINGER_COLORS.middle,
+  FINGER_COLORS.ring,
+  FINGER_COLORS.ring,
+  FINGER_COLORS.ring,
+  FINGER_COLORS.ring,
+  FINGER_COLORS.pinky,
+  FINGER_COLORS.pinky,
+  FINGER_COLORS.pinky,
+  FINGER_COLORS.pinky,
   FINGER_COLORS.palm,
 ];
 const MAX_BEAMS = 64;
@@ -86,7 +116,10 @@ export class LaserExperience implements Experience {
   // Color por rayo (RGB por instancia): se lee en el shader vía un nodo de buffer
   // instanciado, el mismo mecanismo que usa Three para `instanceColor`. Permite un
   // `colorNode`/`emissiveNode` distinto por rayo sin romper el draw call único.
-  private beamColorAttr = new InstancedBufferAttribute(new Float32Array(MAX_BEAMS * 3), 3);
+  private beamColorAttr = new InstancedBufferAttribute(
+    new Float32Array(MAX_BEAMS * 3),
+    3,
+  );
   private beamMat: MeshStandardNodeMaterial;
   private beams: InstancedMesh;
   private userCol = new Color(); // color del usuario para los rayos entre manos (reusado)
@@ -164,8 +197,10 @@ export class LaserExperience implements Experience {
     this.nodeColor.value.set(ctx.color).lerp(WHITE, 0.6);
     this.userCol.set(ctx.color);
 
-    const screen = (hand: readonly { x: number; y: number; z: number }[], idx: number): ScreenPoint =>
-      landmarkToScreen(hand[idx], w, h, ctx.mirrored);
+    const screen = (
+      hand: readonly { x: number; y: number; z: number }[],
+      idx: number,
+    ): ScreenPoint => landmarkToScreen(hand[idx], w, h, ctx.mirrored);
 
     const cols = this.beamColorAttr.array as Float32Array;
     let beamCount = 0;
@@ -184,11 +219,17 @@ export class LaserExperience implements Experience {
       cols[o] = col.r * flicker;
       cols[o + 1] = col.g * flicker;
       cols[o + 2] = col.b * flicker;
-      this.beams.setMatrixAt(beamCount++, this.mat.compose(this.pos, this.quat, this.scl));
+      this.beams.setMatrixAt(
+        beamCount++,
+        this.mat.compose(this.pos, this.quat, this.scl),
+      );
     };
     const node = (p: ScreenPoint, r: number) => {
       if (nodeCount >= MAX_NODES) return;
-      this.nodes.setMatrixAt(nodeCount++, this.mat.makeScale(r, r, 1).setPosition(p.x, p.y, 6));
+      this.nodes.setMatrixAt(
+        nodeCount++,
+        this.mat.makeScale(r, r, 1).setPosition(p.x, p.y, 6),
+      );
     };
 
     const presentTips: (ScreenPoint[] | null)[] = [null, null];
