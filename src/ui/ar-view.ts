@@ -49,6 +49,12 @@ export function arView(): ARView {
 
   const hint = document.createElement("div");
   hint.className = "ar-hint";
+  // La instrucción del modo aparece/desaparece sola: como región live "polite"
+  // un lector de pantalla la anuncia sin interrumpir.
+  hint.setAttribute("aria-live", "polite");
+
+  // HUD de puntaje: cambia su texto en runtime → región live para anunciarlo.
+  hud.setAttribute("aria-live", "polite");
 
   const selector = document.createElement("figure-selector") as FigureSelector;
   selector.className = "ar-selector";

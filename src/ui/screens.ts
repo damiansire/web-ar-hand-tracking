@@ -23,6 +23,10 @@ export function loadingScreen(): HTMLElement {
     "Cargando el modelo de IA…",
     "Descargando el detector de manos. Esto puede tardar unos segundos la primera vez.",
   );
+  // Región live "polite": un lector de pantalla anuncia el cambio de estado sin
+  // interrumpir, ya que el DOM se reemplaza en silencio (replaceChildren).
+  root.setAttribute("aria-live", "polite");
+  root.setAttribute("aria-busy", "true");
   root.appendChild(spinner());
   return root;
 }
@@ -34,6 +38,11 @@ export interface ErrorScreen {
 
 export function errorScreen(message: string, retryLabel = "Reintentar"): ErrorScreen {
   const root = card("Algo salió mal", message);
+  // role=alert + aria-live assertive: un lector de pantalla anuncia el error de
+  // inmediato (cámara denegada, WebGL fallido, modelo no cargado), que de otro
+  // modo cambiaría el DOM en silencio vía replaceChildren.
+  root.setAttribute("role", "alert");
+  root.setAttribute("aria-live", "assertive");
   const button = primaryButton(retryLabel);
   root.appendChild(button);
   return { root, button };

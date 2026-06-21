@@ -241,3 +241,39 @@ button.primary:disabled {
 .ar-capture:active {
   transform: scale(0.94);
 }
+
+/* --- accesibilidad: foco visible por teclado --- */
+/* Los botones usan appearance:none/border:none sobre fondo oscuro, así que sin
+   esto el foco de teclado quedaba invisible. :focus-visible sólo se activa en
+   navegación por teclado, no en clic con el mouse. */
+:focus-visible {
+  outline: 3px solid #8ab4ff;
+  outline-offset: 2px;
+  border-radius: 0.4rem;
+}
+
+button.primary:focus-visible,
+.ar-capture:focus-visible {
+  outline: 3px solid #fff;
+  outline-offset: 3px;
+}
+
+/* --- accesibilidad: respetar prefers-reduced-motion --- */
+/* App de movimiento intenso (partículas, rotación, bloom): para usuarios con
+   sensibilidad vestibular (WCAG 2.3.3) anulamos transiciones/animaciones de UI.
+   El render/dominio consulta además matchMedia en JS para atenuar el movimiento
+   de la escena. */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+    scroll-behavior: auto !important;
+  }
+
+  .spinner {
+    animation: none;
+  }
+}
