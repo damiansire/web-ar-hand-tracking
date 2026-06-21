@@ -1,74 +1,104 @@
 import { CommonModule } from '@angular/common';
-import { Component, inject } from '@angular/core';
+import { ChangeDetectionStrategy, Component, inject, signal } from '@angular/core';
 import { CsvHandlerService } from '../../../../services/csv-handler';
 
 @Component({
   selector: 'app-file-uploader',
-  imports: [
-CommonModule
-  ],
+  imports: [CommonModule],
   templateUrl: './file-uploader.component.html',
-  styleUrl: './file-uploader.component.css'
+  styleUrl: './file-uploader.component.css',
+  changeDetection: ChangeDetectionStrategy.OnPush,
 })
 export class FileUploaderComponent {
 
   csvHandlerService = inject(CsvHandlerService);
-  
-  readonly maxFileSizeBytes = 5 * 1024 * 1024;
 
-  file: File | null = null;
-  uploading = false;
-  uploadProgress = 0;
-  uploadStatus: 'idle' | 'success' | 'error' = 'idle';
-  errorMessage = '';
+  readonly maxFileSizeBytes = 5 * 1024 * 1024;
+  private readonly allowedExtensions = ['.csv', '.txt'];
+
+  file = signal<File | null>(null);
+  uploading = signal(false);
+  uploadProgress = signal(0);
+  uploadStatus = signal<'idle' | 'success' | 'error'>('idle');
+  errorMessage = signal('');
+  isDragging = signal(false);
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      const selected = input.files[0];
-      if (selected.size > this.maxFileSizeBytes) {
-        this.file = null;
-        this.uploadStatus = 'error';
-        this.errorMessage = 'El archivo supera el tamaño máximo de 5MB.';
-        return;
-      }
-      this.file = selected;
-      this.uploadStatus = 'idle';
-      this.errorMessage = '';
+      this.acceptFile(input.files[0]);
     }
   }
 
-  async onUpload(): Promise<void> {
-    if (!this.file) return;
+  onDragOver(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragging.set(true);
+  }
 
-    this.uploading = true;
-    this.uploadProgress = 0;
+  onDragLeave(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragging.set(false);
+  }
 
-    /*
-    // Simulating upload process
-    for (let i = 0; i <= 100; i += 10) {
-      await new Promise(resolve => setTimeout(resolve, 10));
-      this.uploadProgress = i;
+  onDrop(event: DragEvent): void {
+    event.preventDefault();
+    event.stopPropagation();
+    this.isDragging.set(false);
+
+    const dropped = event.dataTransfer?.files;
+    if (dropped && dropped.length > 0) {
+      this.acceptFile(dropped[0]);
     }
-    */
+  }
+
+  // Validacion compartida entre el input de archivo y el drag & drop.
+  private acceptFile(selected: File): void {
+    if (!this.hasAllowedExtension(selected)) {
+      this.file.set(null);
+      this.uploadStatus.set('error');
+      this.errorMessage.set('Solo se admiten archivos .csv o .txt.');
+      return;
+    }
+    if (selected.size > this.maxFileSizeBytes) {
+      this.file.set(null);
+      this.uploadStatus.set('error');
+      this.errorMessage.set('El archivo supera el tamaño máximo de 5MB.');
+      return;
+    }
+    this.file.set(selected);
+    this.uploadStatus.set('idle');
+    this.errorMessage.set('');
+  }
+
+  private hasAllowedExtension(file: File): boolean {
+    const name = file.name.toLowerCase();
+    return this.allowedExtensions.some((ext) => name.endsWith(ext));
+  }
+
+  async onUpload(): Promise<void> {
+    const file = this.file();
+    if (!file) return;
+
+    this.uploading.set(true);
+    this.uploadProgress.set(0);
 
     const reader = new FileReader();
-  
-    reader.onload = (e: any) => {
-      const csvData: string = e.target.result;
-      this.csvHandlerService.setCsv(csvData)
-      this.uploading = false;
-      this.uploadStatus = 'success'
+
+    reader.onload = (e) => {
+      const csvData = (e.target?.result as string) ?? '';
+      this.csvHandlerService.setCsv(csvData);
+      this.uploading.set(false);
+      this.uploadProgress.set(100);
+      this.uploadStatus.set('success');
     };
 
     reader.onerror = () => {
-      this.uploading = false;
-      this.uploadStatus = 'error';
+      this.uploading.set(false);
+      this.uploadStatus.set('error');
     };
 
-    reader.readAsText(this.file);
-
-
-
+    reader.readAsText(file);
   }
 }
