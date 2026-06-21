@@ -1,4 +1,4 @@
-import { Component, inject, signal } from '@angular/core';
+import { Component, inject, OnInit, signal } from '@angular/core';
 import { FormsModule } from '@angular/forms';
 import { CsvHandlerService } from '../../../../services/csv-handler';
 
@@ -8,7 +8,7 @@ import { CsvHandlerService } from '../../../../services/csv-handler';
   templateUrl: './data-handle-table.component.html',
   styleUrl: './data-handle-table.component.css',
 })
-export class DataHandleTableComponent {
+export class DataHandleTableComponent implements OnInit {
   csvHandlerService = inject(CsvHandlerService);
   newColumnName: string = '';
   headers = [
