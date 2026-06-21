@@ -21,6 +21,18 @@ describe('FileUploaderComponent', () => {
     expect(component).toBeTruthy();
   });
 
+  it('rechaza archivos que superan el tamaño máximo', () => {
+    const bigFile = new File(['x'], 'big.csv', { type: 'text/csv' });
+    Object.defineProperty(bigFile, 'size', { value: component.maxFileSizeBytes + 1 });
+    const event = { target: { files: [bigFile] } } as unknown as Event;
+
+    component.onFileSelected(event);
+
+    expect(component.file).toBeNull();
+    expect(component.uploadStatus).toBe('error');
+    expect(component.errorMessage).toContain('5MB');
+  });
+
   it('marca el estado de error y libera el uploading si la lectura falla', async () => {
     const fakeReader: any = {
       onload: null,

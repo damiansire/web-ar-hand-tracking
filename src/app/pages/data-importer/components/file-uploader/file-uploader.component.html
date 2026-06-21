@@ -29,7 +29,7 @@
               </label>
               <p class="pl-1">o arrastrar y soltar</p>
             </div>
-            <p class="text-xs text-gray-500">CSV o TXT hasta 10MB</p>
+            <p class="text-xs text-gray-500">CSV o TXT hasta 5MB</p>
           </div>
         </div>
       </div>
@@ -61,7 +61,7 @@
         <svg class="w-5 h-5 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
           <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
         </svg>
-        <span>Error al subir el archivo. Por favor, intente nuevamente.</span>
+        <span>{{ errorMessage || 'Error al subir el archivo. Por favor, intente nuevamente.' }}</span>
       </div>
 
       <button

@@ -14,16 +14,27 @@ export class FileUploaderComponent {
 
   csvHandlerService = inject(CsvHandlerService);
   
+  readonly maxFileSizeBytes = 5 * 1024 * 1024;
+
   file: File | null = null;
   uploading = false;
   uploadProgress = 0;
   uploadStatus: 'idle' | 'success' | 'error' = 'idle';
+  errorMessage = '';
 
   onFileSelected(event: Event): void {
     const input = event.target as HTMLInputElement;
     if (input.files && input.files.length > 0) {
-      this.file = input.files[0];
+      const selected = input.files[0];
+      if (selected.size > this.maxFileSizeBytes) {
+        this.file = null;
+        this.uploadStatus = 'error';
+        this.errorMessage = 'El archivo supera el tamaño máximo de 5MB.';
+        return;
+      }
+      this.file = selected;
       this.uploadStatus = 'idle';
+      this.errorMessage = '';
     }
   }
 
