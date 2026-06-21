@@ -12,7 +12,6 @@
 import {
   Color,
   DoubleSide,
-  DynamicDrawUsage,
   Group,
   InstancedMesh,
   Matrix4,
@@ -34,6 +33,7 @@ import {
   type Catcher,
 } from "../../domain/catch-game";
 import type { Experience, ExperienceContext } from "./experience";
+import { HIDDEN_MATRIX, makeInstanced } from "./instanced-mesh";
 
 const MAX_CIRCLES = 48;
 const MAX_BURST = 96;
@@ -79,14 +79,22 @@ export class CatchExperience implements Experience {
   private burstGeo = new CircleGeometry(1, 16);
   private burstMat: MeshStandardNodeMaterial;
   private burstMesh: InstancedMesh;
-  private burst: BurstParticle[] = [];
+  // Pool fijo de partículas de explosión (alloc-free): se preasignan MAX_BURST y
+  // se compacta in-place con un índice de vivos, sin reconstruir el array por frame.
+  private burst: BurstParticle[] = Array.from({ length: MAX_BURST }, () => ({
+    x: 0,
+    y: 0,
+    vx: 0,
+    vy: 0,
+    life: 0,
+  }));
+  private burstCount = 0;
 
   private markerGeo = new RingGeometry(0.84, 1, 36);
   private markerMat: MeshStandardNodeMaterial;
   private markers: InstancedMesh;
 
   private mat = new Matrix4();
-  private hidden = new Matrix4().makeScale(0, 0, 0);
   private catchers: Catcher[] = [];
   private sp: MutScreenPoint = { x: 0, y: 0, z: 0 }; // scratch alloc-free por frame
 
@@ -98,31 +106,18 @@ export class CatchExperience implements Experience {
     });
     this.circleMat.colorNode = this.circleColor;
     this.circleMat.emissiveNode = this.circleColor;
-    this.circles = this.instanced(this.circleGeo, this.circleMat, MAX_CIRCLES);
+    this.circles = makeInstanced(this.circleGeo, this.circleMat, MAX_CIRCLES);
 
     this.coreMat = glowMaterial(0xffe7e7).mat;
-    this.cores = this.instanced(this.circleGeo, this.coreMat, MAX_CIRCLES);
+    this.cores = makeInstanced(this.circleGeo, this.coreMat, MAX_CIRCLES);
 
     this.burstMat = glowMaterial(0xfff2c0).mat;
-    this.burstMesh = this.instanced(this.burstGeo, this.burstMat, MAX_BURST);
+    this.burstMesh = makeInstanced(this.burstGeo, this.burstMat, MAX_BURST);
 
     this.markerMat = glowMaterial(0x8fc7ff).mat;
-    this.markers = this.instanced(this.markerGeo, this.markerMat, MAX_MARKERS);
+    this.markers = makeInstanced(this.markerGeo, this.markerMat, MAX_MARKERS);
 
     this.object.add(this.markers, this.circles, this.cores, this.burstMesh);
-  }
-
-  private instanced(
-    geo: CircleGeometry | RingGeometry,
-    mat: MeshStandardNodeMaterial,
-    n: number,
-  ): InstancedMesh {
-    const mesh = new InstancedMesh(geo, mat, n);
-    mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    mesh.frustumCulled = false;
-    for (let i = 0; i < n; i++) mesh.setMatrixAt(i, this.hidden);
-    mesh.instanceMatrix.needsUpdate = true;
-    return mesh;
   }
 
   update(ctx: ExperienceContext): void {
@@ -155,7 +150,7 @@ export class CatchExperience implements Experience {
       }
     }
     for (let i = markerCount; i < MAX_MARKERS; i++)
-      this.markers.setMatrixAt(i, this.hidden);
+      this.markers.setMatrixAt(i, HIDDEN_MATRIX);
     this.markers.instanceMatrix.needsUpdate = true;
 
     const out = updateCatch(this.state, {
@@ -172,10 +167,10 @@ export class CatchExperience implements Experience {
     // Dibujar círculos + su núcleo brillante (highlight desplazado).
     for (let i = 0; i < MAX_CIRCLES; i++) {
       const c = this.state.circles[i];
-      this.circles.setMatrixAt(i, c ? this.place(c.x, c.y, c.r, 0) : this.hidden);
+      this.circles.setMatrixAt(i, c ? this.place(c.x, c.y, c.r, 0) : HIDDEN_MATRIX);
       this.cores.setMatrixAt(
         i,
-        c ? this.place(c.x - c.r * 0.3, c.y - c.r * 0.3, c.r * 0.36, 1) : this.hidden,
+        c ? this.place(c.x - c.r * 0.3, c.y - c.r * 0.3, c.r * 0.36, 1) : HIDDEN_MATRIX,
       );
     }
     this.circles.instanceMatrix.needsUpdate = true;
@@ -187,35 +182,46 @@ export class CatchExperience implements Experience {
 
   private spawnBurst(x: number, y: number): void {
     const n = 12;
-    for (let k = 0; k < n && this.burst.length < MAX_BURST; k++) {
+    for (let k = 0; k < n && this.burstCount < MAX_BURST; k++) {
       const a = (k / n) * Math.PI * 2;
       const speed = 140 + Math.random() * 180;
-      this.burst.push({
-        x,
-        y,
-        vx: Math.cos(a) * speed,
-        vy: Math.sin(a) * speed,
-        life: 1,
-      });
+      // Reusa la partícula del pool en la posición libre (sin alocar).
+      const p = this.burst[this.burstCount++];
+      p.x = x;
+      p.y = y;
+      p.vx = Math.cos(a) * speed;
+      p.vy = Math.sin(a) * speed;
+      p.life = 1;
     }
   }
 
   private updateBurst(dt: number): void {
-    const alive: BurstParticle[] = [];
-    for (const p of this.burst) {
+    // Compacta in-place: avanza las vivas al frente del pool con un índice de
+    // escritura (alloc-free, sin reconstruir el array).
+    let w = 0;
+    for (let r = 0; r < this.burstCount; r++) {
+      const p = this.burst[r];
       p.life -= dt * 2.2;
       if (p.life <= 0) continue;
       p.x += p.vx * dt;
       p.y += p.vy * dt;
       p.vy += 320 * dt; // gravedad leve
-      alive.push(p);
+      if (w !== r) {
+        const d = this.burst[w];
+        d.x = p.x;
+        d.y = p.y;
+        d.vx = p.vx;
+        d.vy = p.vy;
+        d.life = p.life;
+      }
+      w++;
     }
-    this.burst = alive;
+    this.burstCount = w;
     for (let i = 0; i < MAX_BURST; i++) {
-      const p = this.burst[i];
+      const p = i < this.burstCount ? this.burst[i] : null;
       this.burstMesh.setMatrixAt(
         i,
-        p ? this.place(p.x, p.y, 7 * p.life + 1, 2) : this.hidden,
+        p ? this.place(p.x, p.y, 7 * p.life + 1, 2) : HIDDEN_MATRIX,
       );
     }
     this.burstMesh.instanceMatrix.needsUpdate = true;

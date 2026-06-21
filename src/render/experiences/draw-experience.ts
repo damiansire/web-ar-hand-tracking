@@ -11,7 +11,6 @@ import {
   CircleGeometry,
   Color,
   DoubleSide,
-  DynamicDrawUsage,
   Group,
   InstancedMesh,
   Matrix4,
@@ -27,6 +26,7 @@ import {
 } from "../../domain/hand-gestures";
 import { Trail } from "../../domain/trail";
 import type { Experience, ExperienceContext } from "./experience";
+import { HIDDEN_MATRIX, makeInstanced } from "./instanced-mesh";
 
 const LIFETIME = 2.6; // s que tarda un punto en desvanecerse
 const MAX_PER_HAND = 280; // puntos vivos por mano (buffer circular)
@@ -46,7 +46,6 @@ export class DrawExperience implements Experience {
   private pinch = [new PinchDetector(), new PinchDetector()];
   private wasDrawing = [false, false];
   private m = new Matrix4();
-  private hidden = new Matrix4().makeScale(0, 0, 0);
   private sp: MutScreenPoint = { x: 0, y: 0, z: 0 }; // scratch alloc-free por frame
 
   constructor() {
@@ -66,11 +65,7 @@ export class DrawExperience implements Experience {
     // Borde suave (glow): opaco al centro, se desvanece hacia el radio del punto.
     const d = uv().sub(vec2(0.5, 0.5)).length();
     this.mat.opacityNode = oneMinus(smoothstep(0.15, 0.5, d));
-    this.dots = new InstancedMesh(this.geo, this.mat, MAX_DOTS);
-    this.dots.instanceMatrix.setUsage(DynamicDrawUsage);
-    this.dots.frustumCulled = false;
-    for (let i = 0; i < MAX_DOTS; i++) this.dots.setMatrixAt(i, this.hidden);
-    this.dots.instanceMatrix.needsUpdate = true;
+    this.dots = makeInstanced(this.geo, this.mat, MAX_DOTS);
     this.object.add(this.dots);
   }
 
@@ -131,7 +126,7 @@ export class DrawExperience implements Experience {
         );
       }
     }
-    for (let i = n; i < MAX_DOTS; i++) this.dots.setMatrixAt(i, this.hidden);
+    for (let i = n; i < MAX_DOTS; i++) this.dots.setMatrixAt(i, HIDDEN_MATRIX);
     this.dots.instanceMatrix.needsUpdate = true;
   }
 

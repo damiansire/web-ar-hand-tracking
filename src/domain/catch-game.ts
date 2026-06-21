@@ -99,9 +99,14 @@ export function updateCatch(state: CatchState, cfg: CatchConfig): CatchOutcome {
   }
 
   const outcome: CatchOutcome = { caught: [] };
-  const survivors: Circle[] = [];
 
-  for (const c of state.circles) {
+  // Compactación in-place de `state.circles` con un índice de escritura: los
+  // sobrevivientes se mueven al frente del mismo array y se recorta con `.length`,
+  // sin alocar un array de survivors por frame (hot path del juego).
+  const circles = state.circles;
+  let w = 0;
+  for (let r = 0; r < circles.length; r++) {
+    const c = circles[r];
     c.y += c.vy * cfg.dt;
 
     // ¿Lo atrapa alguna mano?
@@ -124,9 +129,8 @@ export function updateCatch(state: CatchState, cfg: CatchConfig): CatchOutcome {
       state.missed++;
       continue;
     }
-    survivors.push(c);
+    circles[w++] = c; // sobrevive: lo movemos al frente
   }
-
-  state.circles = survivors;
+  circles.length = w; // descarta atrapados/perdidos del final
   return outcome;
 }

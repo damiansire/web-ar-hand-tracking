@@ -138,6 +138,31 @@ describe("updateCatch — colisión y score", () => {
     expect(s.circles).toHaveLength(1);
   });
 
+  it("compacta in-place: sobreviven los del medio conservando orden e identidad", () => {
+    const s = createCatchState();
+    s.spawnTimer = 10; // sin spawn
+    // 3 círculos quietos; atrapamos sólo el del medio (id 2).
+    s.circles = [
+      { id: 1, x: 50, y: 100, vy: 0, r: 26 },
+      { id: 2, x: 200, y: 100, vy: 0, r: 26 },
+      { id: 3, x: 350, y: 100, vy: 0, r: 26 },
+    ];
+    const ref1 = s.circles[0];
+    const ref3 = s.circles[2];
+    const out = updateCatch(s, {
+      width: W,
+      height: H,
+      dt: 0.016,
+      catchers: [catcher(200, 100)],
+      random: fixed(0),
+    });
+    expect(out.caught.map((c) => c.id)).toEqual([2]);
+    // Quedan 1 y 3, en orden, y son los MISMOS objetos (compactación in-place).
+    expect(s.circles.map((c) => c.id)).toEqual([1, 3]);
+    expect(s.circles[0]).toBe(ref1);
+    expect(s.circles[1]).toBe(ref3);
+  });
+
   it("la colisión usa la suma de radios (mano + círculo)", () => {
     const s = createCatchState();
     s.spawnTimer = 10;

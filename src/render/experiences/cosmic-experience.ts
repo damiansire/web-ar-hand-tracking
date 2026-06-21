@@ -14,7 +14,6 @@
 import {
   Color,
   DoubleSide,
-  DynamicDrawUsage,
   Group,
   InstancedMesh,
   Matrix4,
@@ -33,6 +32,7 @@ import {
 import { FINGERTIPS, PinchDetector } from "../../domain/hand-gestures";
 import { ParticleField, depthFactor, type Attractor } from "../../domain/particle-field";
 import type { Experience, ExperienceContext } from "./experience";
+import { HIDDEN_MATRIX, makeInstanced } from "./instanced-mesh";
 
 const COUNT = 2600;
 const DEPTH = 420; // mitad de la profundidad de la caja (z ∈ [-DEPTH, DEPTH])
@@ -96,7 +96,6 @@ export class CosmicExperience implements Experience {
   private flashT = 0;
 
   private m = new Matrix4();
-  private hidden = new Matrix4().makeScale(0, 0, 0);
   private scratch = new Color(); // Color reusable por frame (evita GC en el loop)
   private sp: MutScreenPoint = { x: 0, y: 0, z: 0 }; // scratch alloc-free por frame
   private midLm = { x: 0, y: 0, z: 0 }; // punto medio del pellizco (reusado)
@@ -112,11 +111,7 @@ export class CosmicExperience implements Experience {
     let cursor = 0;
     for (const def of defs) {
       const color = colorUniform(def.hex);
-      const mesh = new InstancedMesh(this.geo, glowMaterial(color), def.n);
-      mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-      mesh.frustumCulled = false;
-      for (let i = 0; i < def.n; i++) mesh.setMatrixAt(i, this.hidden);
-      mesh.instanceMatrix.needsUpdate = true;
+      const mesh = makeInstanced(this.geo, glowMaterial(color), def.n);
       this.object.add(mesh);
       this.layers.push({
         mesh,
@@ -221,7 +216,13 @@ export class CosmicExperience implements Experience {
         this.m.makeScale(tw, tw, 1).setPosition(f.x[i], f.y[i], f.z[i] * 0.01);
         l.mesh.setMatrixAt(local, this.m);
       }
-      l.mesh.instanceMatrix.needsUpdate = true;
+      // Sólo subimos a GPU el rango efectivamente escrito [0, drawn) en vez del
+      // buffer completo: cuando qScale<1 el ahorro de matrices también reduce el
+      // tráfico a GPU (las instancias del tail ya las ocultó `setQuality`).
+      const attr = l.mesh.instanceMatrix;
+      attr.clearUpdateRanges();
+      if (drawn > 0) attr.addUpdateRange(0, drawn * 16); // 16 floats por matriz
+      attr.needsUpdate = true;
     }
 
     // Núcleo (planeta) + halo: crece al pellizcar, pulsa al soltar.
@@ -259,7 +260,10 @@ export class CosmicExperience implements Experience {
       const total = l.end - l.start;
       const drawn = Math.floor(total * this.qScale);
       for (let local = drawn; local < total; local++)
-        l.mesh.setMatrixAt(local, this.hidden);
+        l.mesh.setMatrixAt(local, HIDDEN_MATRIX);
+      // Al cambiar el tier reescribimos el tail oculto: forzamos un upload del
+      // buffer completo (sin rango parcial) para que esas instancias suban a GPU.
+      l.mesh.instanceMatrix.clearUpdateRanges();
       l.mesh.instanceMatrix.needsUpdate = true;
     }
   }

@@ -37,6 +37,7 @@ import {
   type MutScreenPoint,
   type ScreenPoint,
 } from "../../domain/hand-tracking";
+import { HIDDEN_MATRIX, makeInstanced } from "./instanced-mesh";
 import { FINGERTIPS } from "../../domain/hand-gestures";
 import type { Experience, ExperienceContext } from "./experience";
 
@@ -138,7 +139,6 @@ export class LaserExperience implements Experience {
   private scl = new Vector3();
   private quat = new Quaternion();
   private euler = new Euler();
-  private hidden = new Matrix4().makeScale(0, 0, 0);
 
   // Scratch alloc-free para proyectar landmarks por frame (ver invariante
   // near-zero-alloc del repo). `tipBuf` guarda las 5 puntas de cada mano (deben
@@ -174,7 +174,7 @@ export class LaserExperience implements Experience {
     // Núcleo neón: brillante en el eje del haz, se apaga hacia los bordes (uv.y).
     const ny = uv().y.sub(0.5).abs(); // 0 centro → 0.5 borde
     this.beamMat.opacityNode = oneMinus(smoothstep(0.1, 0.5, ny));
-    this.beams = this.instanced(this.beamGeo, this.beamMat, MAX_BEAMS);
+    this.beams = makeInstanced(this.beamGeo, this.beamMat, MAX_BEAMS);
 
     this.nodeMat = new MeshStandardNodeMaterial({
       metalness: 0,
@@ -187,22 +187,9 @@ export class LaserExperience implements Experience {
     this.nodeMat.emissiveNode = this.nodeColor;
     const dn = uv().sub(vec2(0.5, 0.5)).length();
     this.nodeMat.opacityNode = oneMinus(smoothstep(0.1, 0.5, dn));
-    this.nodes = this.instanced(this.nodeGeo, this.nodeMat, MAX_NODES);
+    this.nodes = makeInstanced(this.nodeGeo, this.nodeMat, MAX_NODES);
 
     this.object.add(this.beams, this.nodes);
-  }
-
-  private instanced(
-    geo: PlaneGeometry | CircleGeometry,
-    mat: MeshStandardNodeMaterial,
-    n: number,
-  ): InstancedMesh {
-    const mesh = new InstancedMesh(geo, mat, n);
-    mesh.instanceMatrix.setUsage(DynamicDrawUsage);
-    mesh.frustumCulled = false;
-    for (let i = 0; i < n; i++) mesh.setMatrixAt(i, this.hidden);
-    mesh.instanceMatrix.needsUpdate = true;
-    return mesh;
   }
 
   update(ctx: ExperienceContext): void {
@@ -275,8 +262,8 @@ export class LaserExperience implements Experience {
       }
     }
 
-    for (let i = beamCount; i < MAX_BEAMS; i++) this.beams.setMatrixAt(i, this.hidden);
-    for (let i = nodeCount; i < MAX_NODES; i++) this.nodes.setMatrixAt(i, this.hidden);
+    for (let i = beamCount; i < MAX_BEAMS; i++) this.beams.setMatrixAt(i, HIDDEN_MATRIX);
+    for (let i = nodeCount; i < MAX_NODES; i++) this.nodes.setMatrixAt(i, HIDDEN_MATRIX);
     this.beams.instanceMatrix.needsUpdate = true;
     this.beamColorAttr.needsUpdate = true;
     this.nodes.instanceMatrix.needsUpdate = true;
