@@ -13,6 +13,18 @@ import { BackPressure } from "./back-pressure";
 
 export type HandsListener = (hands: NormalizedLandmark[][]) => void;
 
+/**
+ * Inyectables para test: una fábrica de `Worker` fake y un `createImageBitmap`
+ * stub. En producción se usan los reales (Worker clásico + global del browser),
+ * así no cambia el comportamiento.
+ */
+export interface HandTrackerDeps {
+  /** Fábrica del Worker (cada llamada debe devolver una instancia nueva). */
+  createWorker?: () => Worker;
+  /** Captura del cuadro como ImageBitmap (por defecto el global del browser). */
+  createImageBitmap?: typeof createImageBitmap;
+}
+
 export class HandTracker {
   private worker!: Worker;
   // Back-pressure de un solo cuadro en vuelo (lógica pura testeada).
@@ -20,17 +32,23 @@ export class HandTracker {
   private ready = false;
   private disposed = false;
   private listener: HandsListener | null = null;
+  private readonly workerFactory: () => Worker;
+  private readonly captureBitmap: typeof createImageBitmap;
   /** Delegate efectivamente usado, para diagnóstico. */
   delegate: "GPU" | "CPU" | null = null;
 
-  constructor() {
+  constructor(deps: HandTrackerDeps = {}) {
+    // Worker clásico (sin `type: "module"`): el worker no tiene imports ESM y
+    // carga MediaPipe con `importScripts`. Ver nota en el archivo del worker.
+    this.workerFactory =
+      deps.createWorker ??
+      (() => new Worker(new URL("./hand-landmarker.worker.ts", import.meta.url)));
+    this.captureBitmap = deps.createImageBitmap ?? createImageBitmap;
     this.createWorker();
   }
 
   private createWorker(): void {
-    // Worker clásico (sin `type: "module"`): el worker no tiene imports ESM y
-    // carga MediaPipe con `importScripts`. Ver nota en el archivo del worker.
-    this.worker = new Worker(new URL("./hand-landmarker.worker.ts", import.meta.url));
+    this.worker = this.workerFactory();
   }
 
   /**
@@ -121,7 +139,7 @@ export class HandTracker {
       // antes de mandarlo al worker: el detector no necesita más resolución y
       // así abaratamos el createImageBitmap, la transferencia y el preprocesado.
       const scale = Math.min(1, 320 / Math.max(vw, vh));
-      const bitmap = await createImageBitmap(source, {
+      const bitmap = await this.captureBitmap(source, {
         resizeWidth: Math.round(vw * scale),
         resizeHeight: Math.round(vh * scale),
         resizeQuality: "low",

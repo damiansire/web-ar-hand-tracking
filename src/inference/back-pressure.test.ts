@@ -36,22 +36,25 @@ describe("BackPressure", () => {
     }
   });
 
-  it("libera ante un fallo de captura (createImageBitmap reject)", () => {
+  // NOTA: estos tests cubren SÓLO la primitiva BackPressure (acquire/release/
+  // idempotencia). La orquestación real del HandTracker —que el gate se libere
+  // ante createImageBitmap reject, detect-error y la carrera dispose()— se prueba
+  // con un Worker fake en hand-tracker.test.ts (no acá).
+  it("release() libera el gate (un nuevo tryAcquire vuelve a pasar)", () => {
     const bp = new BackPressure();
     bp.tryAcquire();
-    // El shell captura la excepción y llama release(); el gate no queda trabado.
     bp.release();
     expect(bp.tryAcquire()).toBe(true);
   });
 
-  it("libera ante detect-error del worker (no se congela la detección)", () => {
+  it("release() deja el gate libre (busy === false)", () => {
     const bp = new BackPressure();
     bp.tryAcquire();
-    bp.release(); // simula 'detect-error'
+    bp.release();
     expect(bp.busy).toBe(false);
   });
 
-  it("release es idempotente (detect-error tardío seguido de result)", () => {
+  it("release() es idempotente (doble release no rompe el gate)", () => {
     const bp = new BackPressure();
     bp.tryAcquire();
     bp.release();
