@@ -47,7 +47,12 @@ export class FileUploaderComponent {
       const csvData: string = e.target.result;
       this.csvHandlerService.setCsv(csvData)
       this.uploading = false;
-      this.uploadStatus = 'success'  //'error'
+      this.uploadStatus = 'success'
+    };
+
+    reader.onerror = () => {
+      this.uploading = false;
+      this.uploadStatus = 'error';
     };
 
     reader.readAsText(this.file);
