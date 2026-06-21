@@ -1,3 +1,4 @@
+import { provideExperimentalZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { FileUploaderComponent } from './file-uploader.component';
@@ -8,7 +9,8 @@ describe('FileUploaderComponent', () => {
 
   beforeEach(async () => {
     await TestBed.configureTestingModule({
-      imports: [FileUploaderComponent]
+      imports: [FileUploaderComponent],
+      providers: [provideExperimentalZonelessChangeDetection()]
     })
     .compileComponents();
 

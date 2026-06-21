@@ -1,3 +1,4 @@
+import { provideExperimentalZonelessChangeDetection } from '@angular/core';
 import { TestBed } from '@angular/core/testing';
 
 import { CsvHandlerService } from './csv-handler';
@@ -7,7 +8,9 @@ describe('CsvHandlerService', () => {
 
   beforeEach(() => {
     localStorage.clear();
-    TestBed.configureTestingModule({});
+    TestBed.configureTestingModule({
+      providers: [provideExperimentalZonelessChangeDetection()],
+    });
     service = TestBed.inject(CsvHandlerService);
   });
 

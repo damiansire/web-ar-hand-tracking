@@ -1,3 +1,4 @@
+import { provideExperimentalZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { DataHandleTableComponent } from './data-handle-table.component';
@@ -10,7 +11,8 @@ describe('DataHandleTableComponent', () => {
   beforeEach(async () => {
     localStorage.clear();
     await TestBed.configureTestingModule({
-      imports: [DataHandleTableComponent]
+      imports: [DataHandleTableComponent],
+      providers: [provideExperimentalZonelessChangeDetection()]
     })
     .compileComponents();
 

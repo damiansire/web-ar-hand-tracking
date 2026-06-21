@@ -1,3 +1,4 @@
+import { provideExperimentalZonelessChangeDetection } from '@angular/core';
 import { ComponentFixture, TestBed } from '@angular/core/testing';
 
 import { DataImporterComponent } from './data-importer.component';
@@ -10,7 +11,8 @@ describe('DataImporterComponent', () => {
   beforeEach(async () => {
     localStorage.clear();
     await TestBed.configureTestingModule({
-      imports: [DataImporterComponent]
+      imports: [DataImporterComponent],
+      providers: [provideExperimentalZonelessChangeDetection()]
     })
     .compileComponents();
 
