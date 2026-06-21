@@ -59,6 +59,11 @@
   >
     Cargar otro archivo
   </button>
+  <!-- Anuncio en vivo de la seleccion para lectores de pantalla -->
+  <p aria-live="polite" role="status" class="sr-only">
+    {{ selectedCount() }} fila(s) seleccionada(s)
+  </p>
+
   @if ( csvHandlerService.parsedData()?.length != 0) {
   <ng-container>
     <div class="mt-8 flex flex-col">
@@ -86,8 +91,14 @@
               <tbody class="divide-y divide-gray-200 bg-white">
                 @for (row of bodyRows(); track $index) {
                 <tr
+                  role="button"
+                  tabindex="0"
+                  [attr.aria-pressed]="csvHandlerService.selectedRows().includes($index + 1)"
+                  [attr.aria-label]="'Seleccionar fila ' + ($index + 1)"
+                  class="cursor-pointer focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500"
                   [class.bg-blue-50]="csvHandlerService.selectedRows().includes($index + 1)"
                   (click)="toggleRowSelection($index + 1)"
+                  (keydown)="onRowKeydown($event, $index + 1)"
                 >
                   @for (cell of row; track $index) {
                   <td

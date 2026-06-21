@@ -45,4 +45,53 @@ describe('DataHandleTableComponent', () => {
       ['Luis', '25'],
     ]);
   });
+
+  it('selecciona una fila con la tecla Enter', () => {
+    const csvHandler = TestBed.inject(CsvHandlerService);
+    const event = new KeyboardEvent('keydown', { key: 'Enter' });
+    spyOn(event, 'preventDefault');
+
+    component.onRowKeydown(event, 1);
+
+    expect(csvHandler.selectedRows()).toEqual([1]);
+    expect(event.preventDefault).toHaveBeenCalled();
+  });
+
+  it('selecciona una fila con la barra espaciadora y evita el scroll', () => {
+    const csvHandler = TestBed.inject(CsvHandlerService);
+    const event = new KeyboardEvent('keydown', { key: ' ' });
+    spyOn(event, 'preventDefault');
+
+    component.onRowKeydown(event, 2);
+
+    expect(csvHandler.selectedRows()).toEqual([2]);
+    expect(event.preventDefault).toHaveBeenCalled();
+  });
+
+  it('ignora otras teclas', () => {
+    const csvHandler = TestBed.inject(CsvHandlerService);
+    component.onRowKeydown(new KeyboardEvent('keydown', { key: 'a' }), 1);
+
+    expect(csvHandler.selectedRows()).toEqual([]);
+  });
+
+  it('refleja el conteo de filas seleccionadas', () => {
+    const csvHandler = TestBed.inject(CsvHandlerService);
+    csvHandler.toggleRowSelection(1);
+    csvHandler.toggleRowSelection(2);
+
+    expect(component.selectedCount()).toBe(2);
+  });
+
+  it('renderiza filas operables por teclado (role/tabindex)', () => {
+    const csvHandler = TestBed.inject(CsvHandlerService);
+    csvHandler.setCsv('a,b\n1,2');
+    csvHandler.parseCSV();
+    fixture.detectChanges();
+
+    const compiled = fixture.nativeElement as HTMLElement;
+    const row = compiled.querySelector('tbody tr');
+    expect(row?.getAttribute('role')).toBe('button');
+    expect(row?.getAttribute('tabindex')).toBe('0');
+  });
 });
