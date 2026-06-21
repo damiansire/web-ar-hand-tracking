@@ -1,5 +1,4 @@
 /// <reference lib="webworker" />
-/* eslint-disable @typescript-eslint/no-explicit-any */
 /**
  * Web Worker de inferencia (worker CLÁSICO, autocontenido).
  *
@@ -36,13 +35,40 @@ interface FrameRequest {
 }
 type WorkerRequest = InitRequest | FrameRequest;
 
-let landmarker: any = null;
+// --- Respuestas del worker (espejo de WorkerResponse en ./protocol.ts) ---
+// Tipadas para que cada post() valide su forma en compilación. El test
+// protocol.contract.test.ts asserta estructuralmente que este espejo y el de
+// protocol.ts no se desincronicen.
+interface NormalizedLandmark {
+  readonly x: number;
+  readonly y: number;
+  readonly z: number;
+}
+type WorkerResponse =
+  | { type: "ready"; delegate: "GPU" | "CPU" }
+  | { type: "init-error"; message: string }
+  | { type: "detect-error"; timestamp: number; message: string }
+  | { type: "result"; timestamp: number; hands: NormalizedLandmark[][] };
 
-function post(message: unknown, transfer?: Transferable[]): void {
+// Interfaz mínima de lo que usamos de MediaPipe, en vez de `any`. El bundle CJS
+// no trae tipos en este worker clásico, pero acotamos la superficie que tocamos.
+interface HandLandmarkerLike {
+  detectForVideo(bitmap: ImageBitmap, timestamp: number): { landmarks?: NormalizedLandmark[][] };
+}
+interface MediaPipeModule {
+  FilesetResolver: { forVisionTasks(wasmBase: string): Promise<unknown> };
+  HandLandmarker: {
+    createFromOptions(fileset: unknown, options: unknown): Promise<HandLandmarkerLike>;
+  };
+}
+
+let landmarker: HandLandmarkerLike | null = null;
+
+function post(message: WorkerResponse, transfer?: Transferable[]): void {
   (self as DedicatedWorkerGlobalScope).postMessage(message, transfer ?? []);
 }
 
-async function loadMediaPipe(bundleUrl: string): Promise<any> {
+async function loadMediaPipe(bundleUrl: string): Promise<MediaPipeModule> {
   // El bundle .cjs del CDN se sirve con Content-Type `application/node`, que el
   // navegador rechaza en `importScripts` (exige un MIME de JavaScript). Lo
   // bajamos con fetch (CORS habilitado) y lo cargamos desde un Blob URL
@@ -52,8 +78,9 @@ async function loadMediaPipe(bundleUrl: string): Promise<any> {
     return r.text();
   });
   const blobUrl = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
-  // Shim de CommonJS: el bundle es CJS y asigna a `module.exports`.
-  const g = self as any;
+  // Shim de CommonJS: el bundle es CJS y asigna a `module.exports`. Acotamos el
+  // cast al global del worker a esta forma mínima (CJS module shim), sin `any`.
+  const g = self as unknown as { module: { exports: unknown }; exports: unknown };
   g.module = { exports: {} };
   g.exports = g.module.exports;
   try {
@@ -61,7 +88,7 @@ async function loadMediaPipe(bundleUrl: string): Promise<any> {
   } finally {
     URL.revokeObjectURL(blobUrl);
   }
-  return g.module.exports;
+  return g.module.exports as MediaPipeModule;
 }
 
 /** ¿Hay un contexto WebGL2 vía OffscreenCanvas en este worker? */
@@ -135,5 +162,11 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
     case "frame":
       detect(msg.bitmap, msg.timestamp);
       break;
+    default: {
+      // Guard de exhaustividad: un WorkerRequest nuevo sin manejar falla la
+      // compilación en vez de ignorarse silenciosamente.
+      const _exhaustive: never = msg;
+      void _exhaustive;
+    }
   }
 };

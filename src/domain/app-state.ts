@@ -51,7 +51,12 @@ export function transition(state: AppState, event: AppEvent): AppState {
     case "ready":
       return state;
 
-    default:
+    default: {
+      // Guard de exhaustividad: si se agrega un AppStatus nuevo sin manejarlo,
+      // esto falla la compilación en vez de silenciarlo con `return state`.
+      const _exhaustive: never = state.status;
+      void _exhaustive;
       return state;
+    }
   }
 }
