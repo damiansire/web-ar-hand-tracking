@@ -3,100 +3,101 @@
 [![CI](https://github.com/damiansire/artificial-intelligence-augmented-reality-figures/actions/workflows/ci.yml/badge.svg)](https://github.com/damiansire/artificial-intelligence-augmented-reality-figures/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
-Realidad aumentada en el navegador: detecta tu mano con la cámara y dibuja una
-figura 3D que la sigue en tiempo real. La detección corre en un **Web Worker**
-(MediaPipe Hand Landmarker) para no bloquear el hilo principal, y el render 3D
-lo hace **Three.js**.
+Augmented reality in the browser: it detects your hand with the camera and draws
+a 3D figure that follows it in real time. Detection runs in a **Web Worker**
+(MediaPipe Hand Landmarker) so the main thread stays unblocked, and the 3D
+rendering is done with **Three.js**.
 
-**▶ Demo en vivo:** https://damiansire.github.io/artificial-intelligence-augmented-reality-figures/
-_(requiere cámara; el video nunca sale de tu dispositivo)_
+**▶ Live demo:** https://damiansire.github.io/artificial-intelligence-augmented-reality-figures/
+_(requires a camera; the video never leaves your device)_
 
-> Reescritura completa de la versión original (p5.js + ml5.js en el hilo
-> principal). Se modernizó el stack, se separó el dominio puro de los _shells_
-> imperativos y se movió la inferencia a un worker.
+> Complete rewrite of the original version (p5.js + ml5.js on the main thread).
+> The stack was modernized, the pure domain was separated from the imperative
+> _shells_, and inference was moved to a worker.
 
-## Qué se puede hacer
+## What you can do
 
-La app trae **5 experiencias** creativas que se eligen desde el selector inferior
-(el diferenciador frente a la versión original p5.js + ml5.js, que sólo seguía la
-mano con una figura). Cada modo decide internamente cómo usa las manos:
+The app ships **5 creative experiences** selectable from the bottom picker (the
+differentiator from the original p5.js + ml5.js version, which only tracked the
+hand with a single figure). Each mode decides internally how it uses the hands:
 
-| Modo           | Qué hace                                                                                     |
-| -------------- | -------------------------------------------------------------------------------------------- |
-| **Figuras 3D** | Mové la mano: la figura te sigue.                                                            |
-| **Dibujar**    | Dibujá con el índice · juntá los dedos para mover · abrí la mano para borrar.                |
-| **Atrapar**    | Atrapá los círculos con la mano y sumá puntos.                                               |
-| **Cosmos**     | Mové la mano: la nebulosa orbita · pellizcá para formar un planeta · soltá para el destello. |
-| **Láseres**    | Tu mano se enciende en neón · mostrá las dos para rayos entre ellas.                         |
+| Mode            | What it does                                                                                |
+| --------------- | ------------------------------------------------------------------------------------------- |
+| **3D Figures**  | Move your hand: the figure follows it.                                                       |
+| **Draw**        | Draw with your index finger · pinch your fingers to move · open your hand to erase.          |
+| **Catch**       | Catch the circles with your hand and score points.                                          |
+| **Cosmos**      | Move your hand: the nebula orbits · pinch to form a planet · release for the burst.          |
+| **Lasers**      | Your hand lights up in neon · show both hands for beams between them.                        |
 
-> Esta tabla refleja `EXPERIENCES` en
-> [`src/domain/experiences.ts`](src/domain/experiences.ts) (labels + hints); si
-> agregás o cambiás un modo, actualizá ambos para que no se desincronicen.
+> This table mirrors `EXPERIENCES` in
+> [`src/domain/experiences.ts`](src/domain/experiences.ts) (labels + hints); if
+> you add or change a mode, update both so they don't drift out of sync.
 
-### Modo Figuras 3D — detalle
+### 3D Figures mode — detail
 
-Elegir entre 6 figuras 3D que siguen la mano (con **perspectiva**: cerca = más
-grande), ajustar tamaño/velocidad/opacidad/material/color, mostrar aristas o
-wireframe, sombra, **dos manos** a la vez, fondo de color, **oclusión** (la
-figura queda detrás al dar vuelta la mano —_calibrada para la mano derecha_: con
-la mano izquierda la oclusión se dispara con la palma en vez del dorso) y **sacar
-una foto** (descarga un PNG). Cuando no hay mano, la figura queda de preview en
-la esquina.
+Choose between 6 3D figures that follow the hand (with **perspective**: closer =
+bigger), adjust size/speed/opacity/material/color, show edges or wireframe,
+shadow, **two hands** at once, colored background, **occlusion** (the figure goes
+behind when you flip your hand — _calibrated for the right hand_: with the left
+hand, occlusion triggers on the palm instead of the back), and **take a photo**
+(downloads a PNG). When there's no hand, the figure stays as a preview in the
+corner.
 
-## Cómo funciona
+## How it works
 
 ```
-┌───────────────── hilo principal ─────────────────┐      ┌──── Web Worker ────┐
-│  cámara (getUserMedia) ──► <video>                │      │  MediaPipe         │
-│        │ ImageBitmap (transferible)               │ ───► │  HandLandmarker    │
+┌───────────────── main thread ────────────────────┐      ┌──── Web Worker ────┐
+│  camera (getUserMedia) ──► <video>                │      │  MediaPipe         │
+│        │ ImageBitmap (transferable)               │ ───► │  HandLandmarker    │
 │        ▼                                          │      │  (WASM + GPU)      │
 │  Three.js  ◄── landmarks ──────────────────────── │ ◄─── │  detectForVideo()  │
-│  (figura 3D sobre la mano)                        │      └────────────────────┘
+│  (3D figure over the hand)                        │      └────────────────────┘
 └───────────────────────────────────────────────────┘
 ```
 
-- **`src/domain/`** — lógica pura y testeada (máquina de estados, mapeo de
-  landmarks a pantalla, catálogo de figuras). Sin DOM ni dependencias.
-- **`src/camera/`** — acceso a la cámara con errores tipados.
-- **`src/inference/`** — el worker de MediaPipe y su cliente con back-pressure
-  (un solo cuadro en vuelo; si llega otro antes de terminar, se descarta).
-- **`src/render/`** — escena Three.js con cámara ortográfica mapeada a píxeles.
-- **`src/ui/`** — pantallas (permiso / carga / error) y el `<figure-selector>`.
+- **`src/domain/`** — pure, tested logic (state machine, landmark-to-screen
+  mapping, figure catalog). No DOM, no dependencies.
+- **`src/camera/`** — camera access with typed errors.
+- **`src/inference/`** — the MediaPipe worker and its client with back-pressure
+  (a single frame in flight; if another arrives before the previous finishes, it
+  is dropped).
+- **`src/render/`** — Three.js scene with an orthographic camera mapped to pixels.
+- **`src/ui/`** — screens (permission / loading / error) and the `<figure-selector>`.
 
-## Requisitos
+## Requirements
 
 - Node.js ≥ 20
-- Un navegador con WebGL y `getUserMedia` (HTTPS o `localhost`).
+- A browser with WebGL and `getUserMedia` (HTTPS or `localhost`).
 
-## Desarrollo
+## Development
 
 ```bash
 npm install
-npm run dev        # servidor de desarrollo (Vite)
-npm test           # tests de dominio (Vitest)
-npm run typecheck  # TypeScript en modo estricto
-npm run format     # formatea con Prettier
-npm run build      # build de producción a dist/
+npm run dev        # development server (Vite)
+npm test           # domain tests (Vitest)
+npm run typecheck  # TypeScript in strict mode
+npm run format     # format with Prettier
+npm run build      # production build to dist/
 ```
 
-> La cámara sólo funciona en `localhost` o bajo HTTPS (requisito del navegador).
+> The camera only works on `localhost` or over HTTPS (a browser requirement).
 
-## Despliegue
+## Deployment
 
-Hay un workflow ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml))
-que publica `dist/` en **GitHub Pages** en cada push a `main`/`master`. Para
-activarlo: Settings → Pages → Source: **GitHub Actions**. El `base` es relativo
-(`./`), así que funciona tanto en la raíz como en un sub-path de proyecto.
+A workflow ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml))
+publishes `dist/` to **GitHub Pages** on every push to `main`/`master`. To
+enable it: Settings → Pages → Source: **GitHub Actions**. The `base` is relative
+(`./`), so it works both at the root and under a project sub-path.
 
-## Configuración del modelo
+## Model configuration
 
-Los assets de MediaPipe (bundle JS + WASM + modelo `.task`) se cargan desde el
-CDN oficial, fijados por versión en [`src/config.ts`](src/config.ts). Para
-self-hostearlos, copiá esos archivos a `public/` y cambiá las URLs.
+The MediaPipe assets (JS bundle + WASM + the `.task` model) are loaded from the
+official CDN, pinned by version in [`src/config.ts`](src/config.ts). To
+self-host them, copy those files to `public/` and change the URLs.
 
-El worker es **clásico** (no de tipo módulo) y carga MediaPipe con
-`importScripts`: MediaPipe lo necesita, y así el mismo código funciona igual en
-el dev server y en el build. Detalle en
+The worker is **classic** (not a module worker) and loads MediaPipe with
+`importScripts`: MediaPipe requires it, and this way the same code runs the same
+in the dev server and in the build. Details in
 [`hand-landmarker.worker.ts`](src/inference/hand-landmarker.worker.ts).
 
 ## Stack
