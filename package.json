@@ -7,9 +7,9 @@
   "author": "Damian Sire <damiansire@gmail.com>",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/damiansire/artificial-intelligence-augmented-reality-figures.git"
+    "url": "git+https://github.com/damiansire/web-ar-hand-tracking.git"
   },
-  "bugs": "https://github.com/damiansire/artificial-intelligence-augmented-reality-figures/issues",
+  "bugs": "https://github.com/damiansire/web-ar-hand-tracking/issues",
   "keywords": [
     "augmented-reality",
     "mediapipe",

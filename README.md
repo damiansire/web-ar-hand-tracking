@@ -1,6 +1,6 @@
 # AR Hand Figures
 
-[![CI](https://github.com/damiansire/artificial-intelligence-augmented-reality-figures/actions/workflows/ci.yml/badge.svg)](https://github.com/damiansire/artificial-intelligence-augmented-reality-figures/actions/workflows/ci.yml)
+[![CI](https://github.com/damiansire/web-ar-hand-tracking/actions/workflows/ci.yml/badge.svg)](https://github.com/damiansire/web-ar-hand-tracking/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](LICENSE)
 
 Augmented reality in the browser: it detects your hand with the camera and draws
@@ -8,7 +8,7 @@ a 3D figure that follows it in real time. Detection runs in a **Web Worker**
 (MediaPipe Hand Landmarker) so the main thread stays unblocked, and the 3D
 rendering is done with **Three.js**.
 
-**▶ Live demo:** https://damiansire.github.io/artificial-intelligence-augmented-reality-figures/
+**▶ Live demo:** https://damiansire.github.io/web-ar-hand-tracking/
 _(requires a camera; the video never leaves your device)_
 
 > Complete rewrite of the original version (p5.js + ml5.js on the main thread).
