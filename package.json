@@ -1,7 +1,7 @@
 {
-  "name": "ar-hand-figures",
+  "name": "web-ar-hand-tracking",
   "version": "1.0.0",
-  "description": "Realidad aumentada en el navegador: detección de mano con MediaPipe (en un Web Worker) y figuras 3D con Three.js.",
+  "description": "Web-based Augmented Reality app featuring hand-tracking with MediaPipe (in a Web Worker) and 3D figures rendered with Three.js.",
   "type": "module",
   "license": "MIT",
   "author": "Damian Sire <damiansire@gmail.com>",
