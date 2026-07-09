@@ -111,8 +111,13 @@ export class HandTracker {
         modelUrl: MEDIAPIPE.handLandmarkerModel,
         forceCpu,
         // Gate por navegador (la lógica testeada): el worker confirma luego con
-        // su `hasWebGl2()` real, por eso acá asumimos WebGL2 presente.
-        allowGpu: supportsGpuDelegate(navigator.userAgent, true),
+        // su `hasWebGl2()` real, por eso acá asumimos WebGL2 presente. `navigator`
+        // es global del browser pero no existe en Node < 21 (donde corren los
+        // tests): lo guardamos para no romper fuera del browser.
+        allowGpu: supportsGpuDelegate(
+          typeof navigator !== "undefined" ? navigator.userAgent : "",
+          true,
+        ),
       };
       this.worker.postMessage(req);
     });
