@@ -21,13 +21,13 @@ The app ships **5 creative experiences** selectable from the bottom picker (the
 differentiator from the original p5.js + ml5.js version, which only tracked the
 hand with a single figure). Each mode decides internally how it uses the hands:
 
-| Mode            | What it does                                                                                |
-| --------------- | ------------------------------------------------------------------------------------------- |
-| **3D Figures**  | Move your hand: the figure follows it.                                                       |
-| **Draw**        | Draw with your index finger · pinch your fingers to move · open your hand to erase.          |
-| **Catch**       | Catch the circles with your hand and score points.                                          |
-| **Cosmos**      | Move your hand: the nebula orbits · pinch to form a planet · release for the burst.          |
-| **Lasers**      | Your hand lights up in neon · show both hands for beams between them.                        |
+| Mode           | What it does                                                                        |
+| -------------- | ----------------------------------------------------------------------------------- |
+| **3D Figures** | Move your hand: the figure follows it.                                              |
+| **Draw**       | Draw with your index finger · pinch your fingers to move · open your hand to erase. |
+| **Catch**      | Catch the circles with your hand and score points.                                  |
+| **Cosmos**     | Move your hand: the nebula orbits · pinch to form a planet · release for the burst. |
+| **Lasers**     | Your hand lights up in neon · show both hands for beams between them.               |
 
 > This table mirrors `EXPERIENCES` in
 > [`src/domain/experiences.ts`](src/domain/experiences.ts) (labels + hints); if
