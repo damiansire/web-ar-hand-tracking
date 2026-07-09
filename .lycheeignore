@@ -1,0 +1,4 @@
+# Links que lychee no debe chequear (una expresión regex por línea).
+# Servidores locales: no existen en CI.
+^https?://localhost
+^https?://127\.0\.0\.1

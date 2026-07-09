@@ -1,0 +1,35 @@
+name: Link Check
+
+# Evita que el README (badges + links) se rompa en silencio: corre en cada push/PR
+# a main/master y falla si algún link o badge del README queda muerto. Nació de un
+# incidente real: un badge de CI apuntaba al nombre viejo del repo y nadie lo vio.
+on:
+  push:
+    branches: [main, master]
+    paths:
+      - "**/*.md"
+      - ".github/workflows/link-check.yml"
+      - ".lycheeignore"
+  pull_request:
+    paths:
+      - "**/*.md"
+      - ".github/workflows/link-check.yml"
+      - ".lycheeignore"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check README links and badges
+        uses: lycheeverse/lychee-action@v2
+        with:
+          args: --no-progress --verbose "./README.md"
+          fail: true
+        env:
+          # Evita falsos positivos por rate-limit de github.com (badges + links al repo).
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
