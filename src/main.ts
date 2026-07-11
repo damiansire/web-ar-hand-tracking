@@ -173,6 +173,15 @@ async function renderAR(): Promise<void> {
   scene.setFigure(DEFAULT_FIGURE);
   scene.start();
 
+  // Pérdida de contexto WebGL (driver reset, OOM de GPU, crash del proceso de
+  // GPU): degradamos a la pantalla de error en vez de dejar el canvas colgado.
+  scene.setContextLostListener(() => {
+    dispatch({
+      type: "CONTEXT_LOST",
+      message: "Se perdió el contexto WebGL. Recargá para reintentar.",
+    });
+  });
+
   // Registra un listener y deja su baja en arDisposers (cleanup lo suelta al salir).
   const on = <T extends EventTarget>(
     target: T,

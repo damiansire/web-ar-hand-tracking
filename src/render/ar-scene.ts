@@ -84,6 +84,7 @@ export class ARScene {
   private currentColor = "#f45e61";
   private timeAcc = 0; // tiempo acumulado (s) para animar las experiencias
   private onHud: ((text: string | null) => void) | null = null;
+  private onContextLost: (() => void) | null = null;
   // Contexto reusado por frame (alloc-free) que se pasa a la experiencia.
   private expCtx: ExperienceContext = {
     hands: [],
@@ -132,6 +133,30 @@ export class ARScene {
     this.bloom.setEnabled(this.governor.tier.bloom);
 
     this.resize();
+    this.registerContextLossHandling(canvas);
+  }
+
+  /**
+   * Escucha `webglcontextlost` sobre el canvas real del renderer (backend WebGL2;
+   * en WebGPU el evento simplemente nunca dispara, así que el listener es
+   * inofensivo). Antes, una pérdida de contexto sólo se manifestaba como una
+   * excepción silenciosa dentro del loop de `frame()` (canvas congelado, sin
+   * aviso). Ahora frenamos el loop explícitamente y avisamos vía
+   * `setContextLostListener` para que el shell degrade a un estado claro (mismo
+   * patrón que el fallback de cámara denegada), en vez de dejar la escena en un
+   * estado indefinido.
+   */
+  private registerContextLossHandling(canvas: HTMLCanvasElement): void {
+    canvas.addEventListener("webglcontextlost", (event) => {
+      event.preventDefault(); // evita que el navegador descarte el contexto para siempre
+      this.stop();
+      this.onContextLost?.();
+    });
+  }
+
+  /** Registra el callback que se dispara al perder el contexto WebGL del canvas. */
+  setContextLostListener(cb: () => void): void {
+    this.onContextLost = cb;
   }
 
   /**

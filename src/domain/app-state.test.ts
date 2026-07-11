@@ -37,6 +37,15 @@ describe("app-state machine", () => {
     expect(transition(errored, { type: "RETRY" }).status).toBe("requesting-permission");
   });
 
+  it("pérdida de contexto WebGL en modo listo → estado de error explícito", () => {
+    const ready: AppState = { status: "ready" };
+    const next = transition(ready, {
+      type: "CONTEXT_LOST",
+      message: "contexto WebGL perdido",
+    });
+    expect(next).toEqual({ status: "error", error: "contexto WebGL perdido" });
+  });
+
   it("ignora eventos fuera de orden (sin saltos inválidos)", () => {
     // Cargar modelo sin permiso no debe hacer nada.
     expect(transition(INITIAL_STATE, { type: "MODEL_LOADED" })).toBe(INITIAL_STATE);

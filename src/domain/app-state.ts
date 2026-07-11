@@ -24,6 +24,7 @@ export type AppEvent =
   | { type: "PERMISSION_DENIED" }
   | { type: "MODEL_LOADED" }
   | { type: "MODEL_ERROR"; message: string }
+  | { type: "CONTEXT_LOST"; message: string }
   | { type: "RETRY" };
 
 export const INITIAL_STATE: AppState = { status: "requesting-permission" };
@@ -49,6 +50,11 @@ export function transition(state: AppState, event: AppEvent): AppState {
       return state;
 
     case "ready":
+      // Pérdida de contexto WebGL/WebGPU (driver reset, OOM de GPU, crash del
+      // proceso de GPU): degradamos a un estado explícito con mensaje, igual
+      // que el resto de los fallos fatales, en vez de dejar la escena colgada
+      // en un estado indefinido.
+      if (event.type === "CONTEXT_LOST") return { status: "error", error: event.message };
       return state;
 
     default: {
