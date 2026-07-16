@@ -24,7 +24,7 @@ jobs:
       # de severidad alta o crítica. No bloquea por vulns de devDeps.
       - run: npm audit --omit=dev --audit-level=high
       # Persistimos el build para que el job de smoke reutilice el mismo dist/.
-      - uses: actions/upload-artifact@v4
+      - uses: actions/upload-artifact@v7
         with:
           name: dist
           path: dist
