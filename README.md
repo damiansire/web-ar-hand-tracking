@@ -82,6 +82,38 @@ npm run build      # production build to dist/
 
 > The camera only works on `localhost` or over HTTPS (a browser requirement).
 
+### End-to-end tests
+
+`npm test` (Vitest) only covers the pure domain logic. The full pipeline
+(camera capture → inference worker → render) is covered by Playwright
+integration tests in [`e2e/`](e2e), which mock `getUserMedia` (no real camera
+in CI) with an animated `<canvas>.captureStream()` but exercise everything
+else for real — the real worker, the real MediaPipe model download, the real
+`ARScene` render:
+
+```bash
+npm run test:e2e   # Playwright, e2e/pipeline.spec.ts
+```
+
+Not wired into `ci.yml` yet (it downloads the real model from the MediaPipe
+CDN and takes ~30-40s); run it locally or add it as a separate CI job when
+that trade-off is worth it.
+
+### Performance
+
+`scripts/perf-harness.mjs` measures **real** FPS and inference latency by
+running the production build in headless Chromium under two conditions (WebGL2
+delegate vs. the CPU fallback), reading the numbers the app itself
+instruments with `performance.now()` (`HandTracker` latency,
+`PerfGovernor`/`ARScene.fps`):
+
+```bash
+npm run build
+npm run perf:harness
+```
+
+Writes the measured numbers to [`docs/perf/results.md`](docs/perf/results.md).
+
 ## Deployment
 
 A workflow ([`.github/workflows/deploy.yml`](.github/workflows/deploy.yml))

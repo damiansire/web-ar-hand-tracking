@@ -10,6 +10,14 @@ import type { WorkerRequest, WorkerResponse } from "./protocol";
 import { MEDIAPIPE } from "../config";
 import { supportsGpuDelegate } from "../domain/platform";
 import { BackPressure } from "./back-pressure";
+import { RollingStats } from "../domain/perf-metrics";
+
+/** Snapshot de latencia de inferencia (ida y vuelta al worker), en ms. */
+export interface InferenceLatencyStats {
+  readonly count: number;
+  readonly meanMs: number;
+  readonly p95Ms: number;
+}
 
 export type HandsListener = (hands: NormalizedLandmark[][]) => void;
 
@@ -36,6 +44,14 @@ export class HandTracker {
   private readonly captureBitmap: typeof createImageBitmap;
   /** Delegate efectivamente usado, para diagnóstico. */
   delegate: "GPU" | "CPU" | null = null;
+  // Latencia real de inferencia (ida-y-vuelta al worker), medida con
+  // `performance.now()`: se marca `inflightSentAt` justo antes del
+  // `postMessage` del cuadro y se cierra la muestra al recibir el resultado
+  // (o el error) correspondiente. El back-pressure de un solo cuadro en vuelo
+  // (`BackPressure`) garantiza que no hay ambigüedad de a qué envío
+  // corresponde cada respuesta. Ventana de 120 muestras (~4s a 30fps).
+  private readonly latency = new RollingStats(120);
+  private inflightSentAt: number | null = null;
 
   constructor(deps: HandTrackerDeps = {}) {
     // Worker clásico (sin `type: "module"`): el worker no tiene imports ESM y
@@ -158,8 +174,10 @@ export class HandTracker {
         return;
       }
       const req: WorkerRequest = { type: "frame", bitmap, timestamp };
+      this.inflightSentAt = performance.now();
       this.worker.postMessage(req, [bitmap]);
     } catch {
+      this.inflightSentAt = null;
       this.gate.release();
     }
   }
@@ -167,14 +185,30 @@ export class HandTracker {
   private onResult = (event: MessageEvent<WorkerResponse>) => {
     const msg = event.data;
     if (msg.type === "result") {
+      this.recordLatency();
       this.gate.release();
       this.listener?.(msg.hands);
     } else if (msg.type === "detect-error") {
       // El cuadro en vuelo falló en el worker: liberamos el back-pressure para
-      // no quedar trabados, y dejamos que el próximo cuadro reintente.
+      // no quedar trabados, y dejamos que el próximo cuadro reintente. No
+      // contabilizamos su latencia (no representa una detección real).
+      this.inflightSentAt = null;
       this.gate.release();
     }
   };
+
+  /** Cierra la muestra de latencia del cuadro en vuelo, si había uno. */
+  private recordLatency(): void {
+    if (this.inflightSentAt === null) return;
+    this.latency.push(performance.now() - this.inflightSentAt);
+    this.inflightSentAt = null;
+  }
+
+  /** Snapshot de la latencia de inferencia medida (ventana reciente), o `null` sin muestras. */
+  getLatencyStats(): InferenceLatencyStats | null {
+    if (this.latency.count === 0) return null;
+    return { count: this.latency.count, meanMs: this.latency.mean, p95Ms: this.latency.p95() };
+  }
 
   dispose(): void {
     this.disposed = true;

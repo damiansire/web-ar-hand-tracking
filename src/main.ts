@@ -15,7 +15,7 @@ import {
 import { DEFAULT_FIGURE, type FigureKind } from "./domain/figures";
 import { experienceHint, type ExperienceKind } from "./domain/experiences";
 import { requestCamera, CameraError } from "./camera/camera";
-import { HandTracker } from "./inference/hand-tracker";
+import { HandTracker, type InferenceLatencyStats } from "./inference/hand-tracker";
 import { FrameRateLimiter } from "./domain/frame-limiter";
 import type { ARScene } from "./render/ar-scene";
 import { permissionScreen, loadingScreen, errorScreen } from "./ui/screens";
@@ -24,6 +24,31 @@ import type { ControlsState } from "./ui/ar-controls";
 import { capturePhoto } from "./render/capture";
 
 const appEl = document.getElementById("app")!;
+
+/** Snapshot de diagnóstico de rendimiento (fps de render + latencia de inferencia). */
+export interface PerfSnapshot {
+  readonly delegate: "GPU" | "CPU" | null;
+  readonly fps: number | null;
+  readonly inference: InferenceLatencyStats | null;
+}
+
+declare global {
+  interface Window {
+    /**
+     * Hook de diagnóstico read-only, sin efecto en el comportamiento de la app.
+     * Lo usa `scripts/perf-harness.mjs` para medir FPS/latencia real en el
+     * navegador en vez de instrumentar por fuera; no se expone UI para esto a
+     * propósito (es una herramienta de medición, no una feature de producto).
+     */
+    __arPerfSnapshot?: () => PerfSnapshot;
+  }
+}
+
+window.__arPerfSnapshot = (): PerfSnapshot => ({
+  delegate: tracker?.delegate ?? null,
+  fps: scene?.fps ?? null,
+  inference: tracker?.getLatencyStats() ?? null,
+});
 
 let state: AppState = INITIAL_STATE;
 let lastStatus: AppState["status"] | null = null;

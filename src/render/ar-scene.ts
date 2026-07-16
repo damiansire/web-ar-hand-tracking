@@ -58,6 +58,11 @@ export class ARScene {
     return this.renderer.domElement;
   }
 
+  /** FPS suavizado (EMA) que ya calcula el governor de calidad, para diagnóstico/perf. */
+  get fps(): number {
+    return this.governor.fps;
+  }
+
   // Renderer de las figuras 3D (pool de InstancedMesh + sombras + bordes + oclusor
   // + hot-loop de colocación). ARScene le delega el modo "Figuras" y le reenvía los
   // setters de material; ver `FigureRenderer`.

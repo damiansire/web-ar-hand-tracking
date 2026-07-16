@@ -31,6 +31,8 @@
     "test:watch": "vitest",
     "smoke:webgpu": "node scripts/webgpu-smoke.mjs",
     "smoke:webgpu:chrome": "node scripts/webgpu-smoke-chrome.mjs",
+    "test:e2e": "playwright test",
+    "perf:harness": "node scripts/perf-harness.mjs",
     "format": "prettier --write .",
     "format:check": "prettier --check ."
   },
@@ -40,6 +42,8 @@
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
+    "@playwright/test": "^1.61.1",
+    "@types/node": "^26.1.1",
     "@types/three": "^0.185.1",
     "eslint": "^10.5.0",
     "eslint-config-prettier": "^10.1.8",
