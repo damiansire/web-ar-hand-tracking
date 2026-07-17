@@ -30,13 +30,14 @@ GPU en un iPhone/Mac real — no es un flag inventado para el harness.
 
 ## Resultados
 
-| Condición | Delegate real | FPS (EMA final) | FPS mínimo | Latencia media (ms) | Latencia p95 (ms) | Muestras |
-| --- | --- | --- | --- | --- | --- | --- |
-| webgl2-gpu-delegate (Chromium normal) | GPU | 4.2 | 4.2 | — | — | 0 muestras |
-| cpu-fallback (UA Safari 16, WebKit < 17) | — | — | — | — | — | FALLÓ: locator.waitFor: Timeout 90000ms exceeded.
+| Condición                                | Delegate real | FPS (EMA final) | FPS mínimo | Latencia media (ms) | Latencia p95 (ms) | Muestras                                          |
+| ---------------------------------------- | ------------- | --------------- | ---------- | ------------------- | ----------------- | ------------------------------------------------- |
+| webgl2-gpu-delegate (Chromium normal)    | GPU           | 4.2             | 4.2        | —                   | —                 | 0 muestras                                        |
+| cpu-fallback (UA Safari 16, WebKit < 17) | —             | —               | —          | —                   | —                 | FALLÓ: locator.waitFor: Timeout 90000ms exceeded. |
+
 Call log:
-[2m  - waiting for locator('canvas.ar-canvas') to be visible[22m
- |
+[2m - waiting for locator('canvas.ar-canvas') to be visible[22m
+|
 
 ## Caveats
 

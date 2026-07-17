@@ -12,7 +12,9 @@ import { installFakeCamera } from "./fake-camera";
  * que descarga y corre MediaPipe, y la misma `ARScene` de Three.js.
  */
 test.describe("pipeline cámara → worker → render", () => {
-  test("con cámara concedida, la app llega a la vista AR sin crashear", async ({ page }) => {
+  test("con cámara concedida, la app llega a la vista AR sin crashear", async ({
+    page,
+  }) => {
     const pageErrors: Error[] = [];
     page.on("pageerror", (err) => pageErrors.push(err));
 
@@ -32,9 +34,10 @@ test.describe("pipeline cámara → worker → render", () => {
 
     // La pantalla de error (role=alert) NO debe haber aparecido en el camino.
     await expect(page.getByRole("alert")).toHaveCount(0);
-    expect(pageErrors, `errores no capturados en página: ${pageErrors.map(String)}`).toHaveLength(
-      0,
-    );
+    expect(
+      pageErrors,
+      `errores no capturados en página: ${pageErrors.map(String)}`,
+    ).toHaveLength(0);
 
     // El pipeline realmente corrió: el worker resolvió un delegate (GPU o CPU)
     // y la escena está renderizando cuadros con FPS > 0, vía el hook de

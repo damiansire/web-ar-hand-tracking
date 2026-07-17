@@ -105,7 +105,9 @@ function startStaticServer() {
       }
       if (url.pathname === "/" || !existsSync(p)) p = join(DIST, "index.html");
       const body = await readFile(p);
-      res.writeHead(200, { "Content-Type": MIME[extname(p)] ?? "application/octet-stream" });
+      res.writeHead(200, {
+        "Content-Type": MIME[extname(p)] ?? "application/octet-stream",
+      });
       res.end(body);
     } catch (e) {
       res.writeHead(404).end(String(e));
@@ -157,7 +159,9 @@ function installFakeCamera() {
  * fallback interno puede tardar su presupuesto completo.
  */
 async function runCondition(name, browser, base, contextOptions = {}) {
-  console.log(`\n[condición ${name}] contexto: ${JSON.stringify(contextOptions) || "(default)"}`);
+  console.log(
+    `\n[condición ${name}] contexto: ${JSON.stringify(contextOptions) || "(default)"}`,
+  );
   const context = await browser.newContext(contextOptions);
   const page = await context.newPage();
   const consoleErrors = [];
@@ -171,7 +175,14 @@ async function runCondition(name, browser, base, contextOptions = {}) {
 
   await page.getByRole("button", { name: "Activar cámara" }).click();
 
-  const result = { name, contextOptions, error: null, samples: [], final: null, consoleErrors };
+  const result = {
+    name,
+    contextOptions,
+    error: null,
+    samples: [],
+    final: null,
+    consoleErrors,
+  };
   try {
     await page.locator("canvas.ar-canvas").waitFor({ state: "visible", timeout: 90_000 });
 
@@ -194,7 +205,10 @@ async function runCondition(name, browser, base, contextOptions = {}) {
   } catch (e) {
     result.error = String(e?.message || e);
     try {
-      const shot = join(__dirname, `perf-harness-fail-${name.replace(/[^\w-]+/g, "_")}.png`);
+      const shot = join(
+        __dirname,
+        `perf-harness-fail-${name.replace(/[^\w-]+/g, "_")}.png`,
+      );
       await page.screenshot({ path: shot });
       console.error(`[condición ${name}] falló; captura en ${shot}`);
     } catch {
@@ -229,7 +243,10 @@ async function main() {
 
   const conditions = [
     { name: "webgl2-gpu-delegate (Chromium normal)", contextOptions: {} },
-    { name: "cpu-fallback (UA Safari 16, WebKit < 17)", contextOptions: { userAgent: WEBKIT16_UA } },
+    {
+      name: "cpu-fallback (UA Safari 16, WebKit < 17)",
+      contextOptions: { userAgent: WEBKIT16_UA },
+    },
   ];
 
   const results = [];
@@ -267,7 +284,8 @@ async function writeReport(results) {
       }
       const { fps, inference, delegate } = r.final;
       const fpsStr = fps != null ? fps.toFixed(1) : "—";
-      const minFpsStr = r.minFps != null && Number.isFinite(r.minFps) ? r.minFps.toFixed(1) : "—";
+      const minFpsStr =
+        r.minFps != null && Number.isFinite(r.minFps) ? r.minFps.toFixed(1) : "—";
       const meanStr = inference ? inference.meanMs.toFixed(1) : "—";
       const p95Str = inference ? inference.p95Ms.toFixed(1) : "—";
       const nStr = inference ? String(inference.count) : "0";

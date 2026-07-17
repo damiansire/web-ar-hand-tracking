@@ -207,7 +207,11 @@ export class HandTracker {
   /** Snapshot de la latencia de inferencia medida (ventana reciente), o `null` sin muestras. */
   getLatencyStats(): InferenceLatencyStats | null {
     if (this.latency.count === 0) return null;
-    return { count: this.latency.count, meanMs: this.latency.mean, p95Ms: this.latency.p95() };
+    return {
+      count: this.latency.count,
+      meanMs: this.latency.mean,
+      p95Ms: this.latency.p95(),
+    };
   }
 
   dispose(): void {
