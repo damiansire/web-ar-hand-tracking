@@ -45,14 +45,14 @@
     "@playwright/test": "^1.61.1",
     "@types/node": "^26.1.1",
     "@types/three": "^0.185.1",
-    "eslint": "^10.5.0",
+    "eslint": "^10.7.0",
     "eslint-config-prettier": "^10.1.8",
-    "globals": "^17.6.0",
+    "globals": "^17.7.0",
     "playwright": "^1.61.1",
-    "prettier": "^3.8.4",
-    "typescript": "^6.0.3",
-    "typescript-eslint": "^8.61.1",
-    "vite": "^8.0.16",
-    "vitest": "^4.1.9"
+    "prettier": "^3.9.6",
+    "typescript": "^7.0.2",
+    "typescript-eslint": "^8.65.0",
+    "vite": "^8.1.5",
+    "vitest": "^4.1.10"
   }
 }
