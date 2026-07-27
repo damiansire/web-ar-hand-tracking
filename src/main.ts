@@ -117,11 +117,21 @@ function render(): void {
       appEl.appendChild(loadingScreen());
       // Precargamos el chunk de Three.js en paralelo con la descarga del modelo,
       // así su parseo no cae de golpe al pasar a la vista AR (menos "freeze").
-      void import("./render/ar-scene");
+      // Un fallo acá NO se reporta a propósito: es una optimización opcional y el
+      // mismo import se vuelve a hacer (y a manejar) en `renderAR`. Sin el catch
+      // sería una promesa rechazada sin dueño.
+      import("./render/ar-scene").catch(() => {});
       startModel();
       break;
     case "ready":
-      void renderAR();
+      // Nunca `void`: si `renderAR` rechaza (chunk que no baja, fallo inesperado
+      // del montaje) la pantalla queda en blanco para siempre y el error se
+      // pierde como unhandled rejection.
+      renderAR().catch(() => {
+        showFatal(
+          "No se pudo iniciar la vista de realidad aumentada. Recargá la página.",
+        );
+      });
       break;
     case "error":
       cleanup();
@@ -198,8 +208,17 @@ function applyControlsToScene(view: ARView, c: ControlsState): void {
 
 async function renderAR(): Promise<void> {
   // Three.js se carga sólo al entrar a la vista AR (code-splitting): las
-  // pantallas de permiso y carga no arrastran ese chunk.
-  const { ARScene } = await import("./render/ar-scene");
+  // pantallas de permiso y carga no arrastran ese chunk. Si ese chunk no baja
+  // (red caída, deploy a mitad, caché envenenada) el `await` rechaza y antes eso
+  // dejaba la pantalla en blanco permanente, sin mensaje ni forma de reintentar.
+  let ARScene: typeof import("./render/ar-scene").ARScene;
+  try {
+    ({ ARScene } = await import("./render/ar-scene"));
+  } catch {
+    cleanup();
+    showFatal("No se pudo cargar el motor 3D. Revisá tu conexión y recargá.");
+    return;
+  }
 
   const view = arView();
 
@@ -361,4 +380,21 @@ interface VideoFrameCallbackHost {
   requestVideoFrameCallback(cb: (now: number) => void): number;
 }
 
+/**
+ * Última red: cualquier error o promesa rechazada que nadie manejó y que dejó la
+ * página muda (sin nada montado en `#app`) se convierte en una pantalla con
+ * mensaje y botón de recargar. Una app que pide la cámara y se queda en blanco
+ * sin decir nada es el peor final posible; esto no reemplaza al manejo puntual de
+ * cada boundary, lo respalda.
+ */
+function installLastResortErrorScreen(): void {
+  const paintIfBlank = (): void => {
+    if (appEl.childElementCount > 0) return;
+    showFatal("Algo falló al iniciar la aplicación. Recargá la página.");
+  };
+  window.addEventListener("unhandledrejection", paintIfBlank);
+  window.addEventListener("error", paintIfBlank);
+}
+
+installLastResortErrorScreen();
 render();
