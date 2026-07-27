@@ -6,10 +6,18 @@
  * `MediaStream` de un `<canvas>` animado (`captureStream`) ANTES de que
  * `main.ts` corra (se inyecta con `page.addInitScript`, que se ejecuta previo
  * a cualquier script de la página). Dibuja una silueta ovalada que se mueve en
- * el tiempo: no es una mano real, pero es una fuente de video con movimiento
- * real, así el pipeline completo (captura de cuadros → worker de MediaPipe →
- * inferencia → callback de manos → render) se ejercita de punta a punta tal
- * como en producción, sólo cambia el origen del `MediaStream`.
+ * el tiempo.
+ *
+ * LÍMITE EXPLÍCITO del claim: MediaPipe NO detecta una mano en una elipse, así
+ * que `onHands` siempre recibe `[]`. Lo que este fake ejercita de punta a punta
+ * es el pipeline hasta la inferencia (captura de cuadros → transferencia al
+ * worker → modelo real cargado → respuesta al hilo principal → render del
+ * overlay vacío); la rama con manos —colocación, suavizado, perspectiva,
+ * oclusión, experiencias— NO se ejercita acá. Esa composición está cubierta de
+ * forma determinista con landmarks sintéticos en
+ * `src/render/figure-renderer.composition.test.ts`. Para cubrirla también en
+ * browser haría falta una fuente de video con una mano de verdad
+ * (`--use-file-for-fake-video-capture` con un y4m corto).
  */
 export function installFakeCamera(): void {
   const canvas = document.createElement("canvas");

@@ -84,8 +84,10 @@ npm run build      # production build to dist/
 
 ### End-to-end tests
 
-`npm test` (Vitest) only covers the pure domain logic. The full pipeline
-(camera capture → inference worker → render) is covered by Playwright
+`npm test` (Vitest) covers the pure domain logic **and** the composition that
+places figures on a hand, using synthetic landmarks
+(`src/render/figure-renderer.composition.test.ts`). The pipeline up to
+inference (camera capture → inference worker → render) is covered by Playwright
 integration tests in [`e2e/`](e2e), which mock `getUserMedia` (no real camera
 in CI) with an animated `<canvas>.captureStream()` but exercise everything
 else for real — the real worker, the real MediaPipe model download, the real
@@ -94,6 +96,12 @@ else for real — the real worker, the real MediaPipe model download, the real
 ```bash
 npm run test:e2e   # Playwright, e2e/pipeline.spec.ts
 ```
+
+Where that stops: the fake camera draws an ellipse, and MediaPipe does not
+detect a hand in an ellipse, so the e2e run always sees zero hands. The
+hands-present branch is covered by the deterministic composition tests above,
+not in a browser. Covering it end to end would need a real hand as the video
+source (`--use-file-for-fake-video-capture`).
 
 Not wired into `ci.yml` yet (it downloads the real model from the MediaPipe
 CDN and takes ~30-40s); run it locally or add it as a separate CI job when
