@@ -138,7 +138,16 @@ const result = await page.evaluate(async (arScenePath) => {
     rendererBackendField: null,
     canvasSize: null,
     pixelStats: null,
+    // Custom elements REGISTRADOS en el bundle servido. Se mira acá y no en un
+    // test unitario porque el modo de falla es de empaquetado, no de codigo: con
+    // `sideEffects` mal declarado el bundler borra los `customElements.define` y
+    // el panel de controles y los selectores quedan muertos en produccion,
+    // mientras el dev server (que no treeshakea igual) sigue en verde.
+    unregisteredElements: [],
   };
+  for (const tag of ["ar-controls", "figure-selector", "experience-selector"]) {
+    if (!customElements.get(tag)) out.unregisteredElements.push(tag);
+  }
 
   // 1) navigator.gpu + requestAdapter
   const gpu = navigator.gpu;
@@ -267,6 +276,13 @@ const CI =
 const failures = [];
 const warnings = [];
 if (result.sceneError) failures.push(`sceneError: ${result.sceneError}`);
+if (result.unregisteredElements?.length) {
+  failures.push(
+    `custom elements sin registrar en el bundle: ${result.unregisteredElements.join(", ")} ` +
+      "(revisá `sideEffects` en package.json: si el módulo se declara sin efectos, " +
+      "el bundler borra su customElements.define y la UI queda muerta en producción)",
+  );
+}
 if (!result.pixelStats) failures.push("no se obtuvieron pixelStats (no se renderizó)");
 else if (result.pixelStats.nonTransparent === 0) {
   const msg = "el canvas quedó 100% transparente (no se pintó nada)";

@@ -19,7 +19,10 @@
     "computer-vision"
   ],
   "sideEffects": [
-    "**/*.css"
+    "**/*.css",
+    "./src/ui/ar-controls.ts",
+    "./src/ui/figure-selector.ts",
+    "./src/ui/experience-selector.ts"
   ],
   "engines": {
     "node": ">=20.19.0"
