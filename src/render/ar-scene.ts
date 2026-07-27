@@ -33,7 +33,7 @@ import type { FigureKind } from "../domain/figures";
 import type { NormalizedLandmark } from "../domain/hand-tracking";
 import type { ExperienceKind } from "../domain/experiences";
 import { createExperience, type Experience, type ExperienceContext } from "./experiences";
-import type { ControlsState } from "../ui/ar-controls";
+import { DEFAULT_CONTROLS, type ControlsState } from "../domain/controls";
 
 export class ARScene {
   private renderer: WebGPURenderer;
@@ -70,23 +70,26 @@ export class ARScene {
 
   private figure: FigureKind = "cube";
   private hands: NormalizedLandmark[][] = [];
-  private occlusionEnabled = true;
+  private occlusionEnabled = DEFAULT_CONTROLS.occlusion;
 
-  // Controles ajustables por el usuario.
-  private mirrored = true;
-  private sizeScale = 1;
-  private rotationSpeed = 1;
+  // Controles ajustables por el usuario. El estado inicial NO se transcribe acá:
+  // sale de `DEFAULT_CONTROLS` (dominio), la misma fuente de la que arranca el
+  // panel de la UI. El shell además llama `applyControls` al montar la vista, así
+  // que el arranque recorre el mismo camino que cualquier cambio posterior.
+  private mirrored = DEFAULT_CONTROLS.mirrored;
+  private sizeScale = DEFAULT_CONTROLS.size;
+  private rotationSpeed = DEFAULT_CONTROLS.speed;
   private spin = 0; // ángulo acumulado (rad), para no saltar al cambiar la velocidad
   private lastTime = 0;
-  private edgesEnabled = false;
-  private shadowEnabled = false;
-  private multiHand = false;
+  private edgesEnabled = DEFAULT_CONTROLS.edges;
+  private shadowEnabled = DEFAULT_CONTROLS.shadow;
+  private multiHand = DEFAULT_CONTROLS.multiHand;
   private running = false;
 
   // Experiencia creativa activa (null = modo "figuras" clásico).
   private experienceKind: ExperienceKind = "figuras";
   private experience: Experience | null = null;
-  private currentColor = "#f45e61";
+  private currentColor = DEFAULT_CONTROLS.color;
   private timeAcc = 0; // tiempo acumulado (s) para animar las experiencias
   private onHud: ((text: string | null) => void) | null = null;
   private onContextLost: (() => void) | null = null;
@@ -95,10 +98,10 @@ export class ARScene {
     hands: [],
     width: 0,
     height: 0,
-    mirrored: true,
+    mirrored: DEFAULT_CONTROLS.mirrored,
     dt: 0,
     time: 0,
-    color: "#f45e61",
+    color: DEFAULT_CONTROLS.color,
   };
 
   /**

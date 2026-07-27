@@ -19,8 +19,8 @@ import { HandTracker, type InferenceLatencyStats } from "./inference/hand-tracke
 import { FrameRateLimiter } from "./domain/frame-limiter";
 import type { ARScene } from "./render/ar-scene";
 import { permissionScreen, loadingScreen, errorScreen } from "./ui/screens";
-import { arView } from "./ui/ar-view";
-import type { ControlsState } from "./ui/ar-controls";
+import { arView, type ARView } from "./ui/ar-view";
+import type { ControlsState } from "./domain/controls";
 import { capturePhoto } from "./render/capture";
 
 const appEl = document.getElementById("app")!;
@@ -167,6 +167,22 @@ async function startModel(): Promise<void> {
   }
 }
 
+/**
+ * Aplica el estado de los controles a los dos consumidores: la escena 3D
+ * (`applyControls`, el contrato UI→render) y el shell de DOM (espejado del
+ * video, fondo de color). Es un único camino usado tanto al montar la vista como
+ * en cada `controls-change`, para que el arranque no pueda divergir del cambio.
+ */
+function applyControlsToScene(view: ARView, c: ControlsState): void {
+  scene?.applyControls(c);
+  // El espejado del overlay (escena) debe coincidir con el del <video>.
+  view.video.style.transform = c.mirrored ? "scaleX(-1)" : "none";
+  // Fondo de color: oculta el video de la cámara y pinta el color elegido
+  // detrás de la figura (equivale al "Background" de la versión original).
+  view.video.style.visibility = c.bgEnabled ? "hidden" : "visible";
+  view.root.style.background = c.bgEnabled ? c.bgColor : "#000";
+}
+
 async function renderAR(): Promise<void> {
   // Three.js se carga sólo al entrar a la vista AR (code-splitting): las
   // pantallas de permiso y carga no arrastran ese chunk.
@@ -196,6 +212,13 @@ async function renderAR(): Promise<void> {
   void view.video.play().catch(() => {});
 
   scene.setFigure(DEFAULT_FIGURE);
+
+  // Arranque = mismo camino que cualquier cambio posterior. Antes `applyControls`
+  // sólo corría desde el handler de `controls-change`, así que la escena recién se
+  // enteraba del estado del panel cuando el usuario tocaba algo: los defaults del
+  // panel, los de ARScene y los del material coincidían por casualidad.
+  applyControlsToScene(view, view.controls.getState());
+
   scene.start();
 
   // Pérdida de contexto WebGL (driver reset, OOM de GPU, crash del proceso de
@@ -252,15 +275,7 @@ async function renderAR(): Promise<void> {
   });
 
   on(view.controls, "controls-change", (e) => {
-    const c = (e as CustomEvent<ControlsState>).detail;
-    // Un solo contrato UI→render: la escena aplica todo el estado de controles.
-    scene?.applyControls(c);
-    // El espejado del overlay (escena) debe coincidir con el del <video> (CSS).
-    view.video.style.transform = c.mirrored ? "scaleX(-1)" : "none";
-    // Fondo de color: oculta el video de la cámara y pinta el color elegido
-    // detrás de la figura (equivale al "Background" de la versión original).
-    view.video.style.visibility = c.bgEnabled ? "hidden" : "visible";
-    view.root.style.background = c.bgEnabled ? c.bgColor : "#000";
+    applyControlsToScene(view, (e as CustomEvent<ControlsState>).detail);
   });
 
   on(view.capture, "click", () => {

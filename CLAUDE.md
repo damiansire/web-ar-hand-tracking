@@ -224,9 +224,9 @@ G12-G19 anclados en WCAG 2.2, Nielsen Norman Group y Laws of UX)_
     `no-restricted-imports`, y el gate se verificó plantando una violación
     sintética (falla en rojo, no en silencio).
 32. **`render` no importa de `ui`.** Los contratos de datos compartidos entre
-    UI y render (por ejemplo el estado de los controles) viven en `src/domain`.
-    Regla todavía NO enforzada por lint: hay una arista invertida viva (ver
-    "Estado del retrofit").
+    UI y render (el estado de los controles) viven en `src/domain/controls.ts`.
+    Enforzado en `eslint.config.js` con `no-restricted-imports`; el gate se
+    verificó plantando una violación sintética (falla en rojo, no en silencio).
 
 ### Documentación
 
@@ -270,8 +270,9 @@ Enforzado hoy por la máquina:
   `noPropertyAccessFromIndexSignature`, `noImplicitOverride`,
   `allowUnreachableCode: false`, `allowUnusedLabels: false`, además del strict
   que ya estaba.
-- `eslint.config.js` con `no-restricted-imports` por carpeta para los
-  boundaries que hoy están limpios.
+- `eslint.config.js` con `no-restricted-imports` por carpeta para los tres
+  boundaries: `domain` no importa de los shells, `inference`/`camera` no
+  importan de la presentación y `render` no importa de `ui`.
 - Umbral de coverage en `vitest.config.ts`, corrido por `npm test` (y por CI).
 - `.gitattributes` con `* text=auto eol=lf`.
 - `engines.node >= 20.19.0` en `package.json`, alineado con lo que fija CI.
@@ -281,8 +282,5 @@ Deuda conocida (regla escrita, gate todavía NO puesto, con su motivo):
 - `noUncheckedIndexedAccess`: prende ~40 errores reales de indexado en
   `catch-game.ts`, `occluder.ts` y `particle-field.ts`. Es trabajo de dominio,
   no de config: va como fix propio.
-- Boundary `render` -> `ui`: `src/render/ar-scene.ts` importa `ControlsState`
-  desde `src/ui/ar-controls.ts`. La regla de lint entra recién cuando
-  `ControlsState` y sus defaults se muevan a `src/domain`.
 - Actions pinneadas a SHA: requiere resolver los SHA reales de cada action y
   verificar el workflow en GitHub, no se puede validar localmente.

@@ -46,6 +46,7 @@ import {
   uniform,
 } from "three/tsl";
 import type { FigureKind } from "../domain/figures";
+import { DEFAULT_CONTROLS, hexToNumber } from "../domain/controls";
 import {
   anchorOf,
   handPerspectiveScale,
@@ -120,9 +121,14 @@ export interface FigureFrameParams {
 
 export class FigureRenderer {
   // Uniform de color compartido por el node-material (color base de la figura).
-  private colorUniform = uniform(new Color(0xf45e61));
+  // Los valores iniciales salen de `DEFAULT_CONTROLS` (dominio), no de números
+  // repetidos acá: el panel de la UI arranca de la misma fuente, así que lo que se
+  // ve y lo que se toca no pueden divergir.
+  private colorUniform = uniform(new Color(hexToNumber(DEFAULT_CONTROLS.color)));
   private material: MeshStandardNodeMaterial;
-  private edgeMaterial = new LineBasicNodeMaterial({ color: 0x0b1020 });
+  private edgeMaterial = new LineBasicNodeMaterial({
+    color: hexToNumber(DEFAULT_CONTROLS.edgeColor),
+  });
   private shadowMaterial = new MeshBasicNodeMaterial({
     color: 0x000000,
     transparent: true,
@@ -238,7 +244,10 @@ export class FigureRenderer {
    * Funciona idéntico en backend WebGPU y WebGL2.
    */
   private buildFigureMaterial(): MeshStandardNodeMaterial {
-    const mat = new MeshStandardNodeMaterial({ metalness: 0.25, roughness: 0.35 });
+    const mat = new MeshStandardNodeMaterial({
+      metalness: DEFAULT_CONTROLS.metalness,
+      roughness: DEFAULT_CONTROLS.roughness,
+    });
     mat.colorNode = this.colorUniform;
     // Fresnel: 1 en silueta, 0 de frente. Realza el contorno sin texturas.
     const viewDir = cameraPosition.sub(positionWorld).normalize();

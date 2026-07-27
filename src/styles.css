@@ -127,7 +127,9 @@ button.primary:disabled {
 
 .ar-video {
   object-fit: cover;
-  transform: scaleX(-1); /* vista selfie: espejada */
+  /* El espejado (vista selfie) NO se codifica acá: sale de DEFAULT_CONTROLS y lo
+     aplica el shell al montar la vista, junto con el resto del estado de los
+     controles. Duplicarlo en CSS lo dejaba desincronizado del render. */
 }
 
 .ar-canvas {
