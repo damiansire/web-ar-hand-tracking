@@ -28,6 +28,12 @@ interface WorkerLandmark {
 interface WorkerInitRequest {
   type: "init";
   bundleUrl: string;
+  /**
+   * Hash SRI (`sha256-<base64>`) que el bundle debe cumplir para ejecutarse. El
+   * worker aborta si no coincide: se ejecuta codigo de terceros en el mismo
+   * contexto que los cuadros de la camara, asi que la rama por defecto DENIEGA.
+   */
+  bundleSha256: string;
   wasmBase: string;
   modelUrl: string;
   forceCpu: boolean;

@@ -169,6 +169,7 @@ export class HandTracker {
       const req: WorkerRequest = {
         type: "init",
         bundleUrl: MEDIAPIPE.bundle,
+        bundleSha256: MEDIAPIPE.bundleSha256,
         wasmBase: MEDIAPIPE.wasmBase,
         modelUrl: MEDIAPIPE.handLandmarkerModel,
         forceCpu,

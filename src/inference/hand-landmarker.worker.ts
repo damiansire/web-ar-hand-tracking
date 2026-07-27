@@ -45,7 +45,23 @@ function post(message: WorkerResponseMessage, transfer?: Transferable[]): void {
   (self as DedicatedWorkerGlobalScope).postMessage(message, transfer ?? []);
 }
 
-async function loadMediaPipe(bundleUrl: string): Promise<MpModule> {
+/** Digest SHA-256 del texto, en formato SRI (`sha256-<base64>`). */
+async function sha256Sri(text: string): Promise<string> {
+  const encoded = new TextEncoder().encode(text);
+  // Se copia a un ArrayBuffer propio en vez de asertar el tipo del buffer que
+  // devuelve TextEncoder (puede ser compartido): una sola copia, en la init.
+  const data = new ArrayBuffer(encoded.byteLength);
+  new Uint8Array(data).set(encoded);
+  const digest = await crypto.subtle.digest("SHA-256", data);
+  let binary = "";
+  for (const byte of new Uint8Array(digest)) binary += String.fromCharCode(byte);
+  return `sha256-${btoa(binary)}`;
+}
+
+async function loadMediaPipe(
+  bundleUrl: string,
+  expectedSha256: string,
+): Promise<MpModule> {
   // El bundle .cjs del CDN se sirve con Content-Type `application/node`, que el
   // navegador rechaza en `importScripts` (exige un MIME de JavaScript). Lo
   // bajamos con fetch (CORS habilitado) y lo cargamos desde un Blob URL
@@ -54,6 +70,18 @@ async function loadMediaPipe(bundleUrl: string): Promise<MpModule> {
     if (!r.ok) throw new Error(`No se pudo descargar MediaPipe (${r.status}).`);
     return r.text();
   });
+  // Integridad ANTES de ejecutar. Este es el unico punto de la app donde corre
+  // codigo de terceros, y lo hace en el mismo contexto que los cuadros de la
+  // camara: el pin de version fija QUE se pide, no QUE llega, y el atributo
+  // `integrity` de <script> no aplica a este camino (fetch + Blob). Un CDN
+  // comprometido, un TLS interceptado o un republish del paquete se ejecutaban
+  // sin una sola comprobacion. La rama por defecto DENIEGA.
+  const actual = await sha256Sri(code);
+  if (actual !== expectedSha256) {
+    throw new Error(
+      `El bundle de MediaPipe no coincide con su hash esperado (${expectedSha256}; recibido ${actual}). No se ejecuta.`,
+    );
+  }
   const blobUrl = URL.createObjectURL(new Blob([code], { type: "text/javascript" }));
   // Shim de CommonJS: el bundle es CJS y asigna a `module.exports`. Acotamos el
   // cast al global del worker a esta forma mínima (CJS module shim), sin `any`.
@@ -79,12 +107,13 @@ function hasWebGl2(): boolean {
 
 async function init(
   bundleUrl: string,
+  bundleSha256: string,
   wasmBase: string,
   modelUrl: string,
   forceCpu: boolean,
   allowGpu: boolean,
 ): Promise<void> {
-  const mp = await loadMediaPipe(bundleUrl);
+  const mp = await loadMediaPipe(bundleUrl, bundleSha256);
   const fileset = await mp.FilesetResolver.forVisionTasks(wasmBase);
   // GPU es mucho más rápido, pero en algunos navegadores el delegate GPU dentro
   // de un worker cuelga el hilo. El hilo principal ya resolvió el gate por
@@ -127,14 +156,19 @@ self.onmessage = (event: MessageEvent<WorkerRequestMessage>) => {
   const msg = event.data;
   switch (msg.type) {
     case "init":
-      init(msg.bundleUrl, msg.wasmBase, msg.modelUrl, msg.forceCpu, msg.allowGpu).catch(
-        (err: unknown) => {
-          post({
-            type: "init-error",
-            message: err instanceof Error ? err.message : String(err),
-          });
-        },
-      );
+      init(
+        msg.bundleUrl,
+        msg.bundleSha256,
+        msg.wasmBase,
+        msg.modelUrl,
+        msg.forceCpu,
+        msg.allowGpu,
+      ).catch((err: unknown) => {
+        post({
+          type: "init-error",
+          message: err instanceof Error ? err.message : String(err),
+        });
+      });
       break;
     case "frame":
       detect(msg.bitmap, msg.timestamp);

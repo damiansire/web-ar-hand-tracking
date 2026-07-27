@@ -14,6 +14,23 @@
  */
 export const TASKS_VISION_VERSION = "0.10.35";
 
+/**
+ * Hash del bundle que el worker está autorizado a ejecutar, en formato SRI.
+ *
+ * El bundle se baja con `fetch` y se ejecuta desde un Blob URL, camino en el que
+ * el atributo `integrity` de `<script>` no aplica: el pin de versión fija QUÉ se
+ * pide, no QUÉ llega. Sin esta comprobación, cualquier respuesta 200 del CDN se
+ * ejecutaba en el mismo contexto que los cuadros de la cámara (fail-open), lo que
+ * choca de frente con la promesa de privacidad del README.
+ *
+ * El valor es el SHA-256 del archivo del paquete npm instalado (jsDelivr sirve
+ * ese archivo tal cual, byte a byte); `config.test.ts` lo recalcula desde
+ * `node_modules` y falla si difiere, así que no puede quedar viejo en silencio.
+ * Para regenerarlo tras un bump: `node scripts/pin-mediapipe-digest.mjs`.
+ */
+export const MEDIAPIPE_BUNDLE_SHA256 =
+  "sha256-f7pPmAcpfiKTcTGN9Xfpb8nxs9k+eQdeN5it4vx5DJ4=";
+
 export const MEDIAPIPE = {
   /**
    * Bundle CJS de MediaPipe que el worker carga con `importScripts`. Se usa un
@@ -21,6 +38,8 @@ export const MEDIAPIPE = {
    * existe en un worker de tipo módulo.
    */
   bundle: `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/vision_bundle.cjs`,
+  /** Hash esperado de `bundle` (ver `MEDIAPIPE_BUNDLE_SHA256`). */
+  bundleSha256: MEDIAPIPE_BUNDLE_SHA256,
   /** Fileset WASM (SIMD / no-SIMD) que resuelve MediaPipe en runtime. */
   wasmBase: `https://cdn.jsdelivr.net/npm/@mediapipe/tasks-vision@${TASKS_VISION_VERSION}/wasm`,
   /** Modelo de detección de manos (float16, 1 mano). */
