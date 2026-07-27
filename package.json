@@ -21,13 +21,16 @@
   "sideEffects": [
     "**/*.css"
   ],
+  "engines": {
+    "node": ">=20.19.0"
+  },
   "scripts": {
     "dev": "vite",
     "build": "tsc --noEmit && vite build",
     "preview": "vite preview",
     "typecheck": "tsc --noEmit",
     "lint": "eslint .",
-    "test": "vitest run",
+    "test": "vitest run --coverage",
     "test:watch": "vitest",
     "smoke:webgpu": "node scripts/webgpu-smoke.mjs",
     "smoke:webgpu:chrome": "node scripts/webgpu-smoke-chrome.mjs",
@@ -45,6 +48,7 @@
     "@playwright/test": "^1.61.1",
     "@types/node": "^26.1.1",
     "@types/three": "^0.185.1",
+    "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.5.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.6.0",

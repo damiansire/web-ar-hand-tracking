@@ -1,3 +1,9 @@
 node_modules
 dist
 package-lock.json
+coverage
+test-results
+playwright-report
+# Artefactos locales de auditoría: no se versionan y no son código del repo.
+_audit
+_audits

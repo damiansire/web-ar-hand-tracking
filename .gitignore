@@ -8,3 +8,4 @@ scripts/webgpu-smoke-chrome-*.png
 scripts/perf-harness-*.png
 test-results/
 playwright-report/
+coverage/

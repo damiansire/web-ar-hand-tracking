@@ -60,7 +60,7 @@ export class FigureSelector extends HTMLElement {
     for (const fig of FIGURES) {
       const btn = document.createElement("button");
       btn.innerHTML = ICONS[fig.kind];
-      btn.dataset.kind = fig.kind;
+      btn.dataset["kind"] = fig.kind;
       const name = `${fig.label} / ${EN[fig.kind]}`;
       btn.title = name;
       btn.setAttribute("aria-label", name);
@@ -74,7 +74,7 @@ export class FigureSelector extends HTMLElement {
     if (!isFigureKind(kind)) return;
     this.selected = kind;
     this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
-      b.setAttribute("aria-pressed", String(b.dataset.kind === kind));
+      b.setAttribute("aria-pressed", String(b.dataset["kind"] === kind));
     });
     this.dispatchEvent(new CustomEvent<FigureKind>("figure-change", { detail: kind }));
   }

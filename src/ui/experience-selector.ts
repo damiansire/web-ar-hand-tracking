@@ -59,7 +59,7 @@ export class ExperienceSelector extends HTMLElement {
     for (const exp of EXPERIENCES) {
       const btn = document.createElement("button");
       btn.innerHTML = ICONS[exp.kind];
-      btn.dataset.kind = exp.kind;
+      btn.dataset["kind"] = exp.kind;
       const name = `${exp.label} / ${EN[exp.kind]}`;
       btn.title = name;
       btn.setAttribute("aria-label", name);
@@ -73,7 +73,7 @@ export class ExperienceSelector extends HTMLElement {
     if (!isExperienceKind(kind)) return;
     this.selected = kind;
     this.shadowRoot?.querySelectorAll<HTMLButtonElement>("button").forEach((b) => {
-      b.setAttribute("aria-pressed", String(b.dataset.kind === kind));
+      b.setAttribute("aria-pressed", String(b.dataset["kind"] === kind));
     });
     this.dispatchEvent(
       new CustomEvent<ExperienceKind>("experience-change", { detail: kind }),
