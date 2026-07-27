@@ -34,6 +34,7 @@ import type { NormalizedLandmark } from "../domain/hand-tracking";
 import type { ExperienceKind } from "../domain/experiences";
 import { createExperience, type Experience, type ExperienceContext } from "./experiences";
 import { DEFAULT_CONTROLS, type ControlsState } from "../domain/controls";
+import { watchDeviceLost } from "./device-lost";
 
 export class ARScene {
   private renderer: WebGPURenderer;
@@ -162,7 +163,23 @@ export class ARScene {
     });
   }
 
-  /** Registra el callback que se dispara al perder el contexto WebGL del canvas. */
+  /**
+   * Equivalente para el backend WebGPU, que es el camino por defecto en
+   * Chrome/Edge modernos y no dispara `webglcontextlost`: sin esto, perder el
+   * device (suspensión, actualización de driver, TDR de Windows) dejaba el canvas
+   * congelado con la cámara prendida y el loop renderizando contra un dispositivo
+   * muerto, sin ningún aviso. Se llama después de `renderer.init()`, que es
+   * cuando existe el device.
+   */
+  private registerDeviceLossHandling(): void {
+    const backend: unknown = (this.renderer as { backend?: unknown }).backend;
+    watchDeviceLost(backend, () => {
+      this.stop();
+      this.onContextLost?.();
+    });
+  }
+
+  /** Registra el callback que se dispara al perder el contexto de GPU (WebGL o WebGPU). */
   setContextLostListener(cb: () => void): void {
     this.onContextLost = cb;
   }
@@ -175,12 +192,19 @@ export class ARScene {
   static async create(canvas: HTMLCanvasElement): Promise<ARScene> {
     const preferWebGPU = await ARScene.detectWebGPU();
     if (preferWebGPU) {
+      // La instancia se guarda FUERA del try: si `init()` falla hay que disponerla
+      // antes de reintentar. Descartarla sin más filtraba el device/adapter WebGPU
+      // y todo el pool de geometrías y materiales del FigureRenderer, justo en el
+      // camino de recuperación (equipos con drivers problemáticos).
+      let attempt: ARScene | null = null;
       try {
-        const scene = new ARScene(canvas, true);
-        await scene.renderer.init();
-        scene.bloom.init(scene.renderer, scene.scene, scene.camera);
-        return scene;
+        attempt = new ARScene(canvas, true);
+        await attempt.renderer.init();
+        attempt.bloom.init(attempt.renderer, attempt.scene, attempt.camera);
+        attempt.registerDeviceLossHandling();
+        return attempt;
       } catch {
+        attempt?.dispose();
         // El adapter existía pero la init de WebGPU falló (driver, feature, etc.).
         // El canvas ya tomó un contexto WebGPU y no se puede reusar para WebGL2,
         // así que lo reemplazamos por uno fresco en el DOM antes de reintentar.
@@ -190,6 +214,7 @@ export class ARScene {
     const scene = new ARScene(canvas, false);
     await scene.renderer.init();
     scene.bloom.init(scene.renderer, scene.scene, scene.camera);
+    scene.registerDeviceLossHandling();
     return scene;
   }
 
