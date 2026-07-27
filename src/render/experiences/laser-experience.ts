@@ -37,7 +37,7 @@ import {
   type MutScreenPoint,
   type ScreenPoint,
 } from "../../domain/hand-tracking";
-import { HIDDEN_MATRIX, makeInstanced } from "./instanced-mesh";
+import { makeInstanced } from "./instanced-mesh";
 import { FINGERTIPS } from "../../domain/hand-gestures";
 import type { Experience, ExperienceContext } from "./experience";
 
@@ -262,8 +262,12 @@ export class LaserExperience implements Experience {
       }
     }
 
-    for (let i = beamCount; i < MAX_BEAMS; i++) this.beams.setMatrixAt(i, HIDDEN_MATRIX);
-    for (let i = nodeCount; i < MAX_NODES; i++) this.nodes.setMatrixAt(i, HIDDEN_MATRIX);
+    // Rayos y nodos se escriben compactados al frente del pool, así que el conteo
+    // de dibujo es exactamente lo escrito: bajamos `count` en vez de rellenar el
+    // tail con matrices de escala 0. Sin manos eso es 0 instancias dibujadas en
+    // lugar de MAX_BEAMS + MAX_NODES invisibles pasando por el vertex shader.
+    this.beams.count = beamCount;
+    this.nodes.count = nodeCount;
     this.beams.instanceMatrix.needsUpdate = true;
     this.beamColorAttr.needsUpdate = true;
     this.nodes.instanceMatrix.needsUpdate = true;

@@ -32,7 +32,7 @@ import {
 import { FINGERTIPS, PinchDetector } from "../../domain/hand-gestures";
 import { ParticleField, depthFactor, type Attractor } from "../../domain/particle-field";
 import type { Experience, ExperienceContext } from "./experience";
-import { HIDDEN_MATRIX, makeInstanced } from "./instanced-mesh";
+import { makeInstanced } from "./instanced-mesh";
 
 const COUNT = 2600;
 const DEPTH = 420; // mitad de la profundidad de la caja (z ∈ [-DEPTH, DEPTH])
@@ -205,7 +205,7 @@ export class CosmicExperience implements Experience {
 
     // Volcar el campo a las capas (cada una su rango de índices del campo). Sólo
     // dibujamos el presupuesto del tier (qScale): menos matrices por frame y menos
-    // fill GPU en equipos lentos. Las que sobran las oculta `setQuality`.
+    // fill GPU en equipos lentos.
     const f = this.field;
     for (const l of this.layers) {
       const drawn = Math.floor((l.end - l.start) * this.qScale);
@@ -216,9 +216,15 @@ export class CosmicExperience implements Experience {
         this.m.makeScale(tw, tw, 1).setPosition(f.x[i], f.y[i], f.z[i] * 0.01);
         l.mesh.setMatrixAt(local, this.m);
       }
-      // Sólo subimos a GPU el rango efectivamente escrito [0, drawn) en vez del
-      // buffer completo: cuando qScale<1 el ahorro de matrices también reduce el
-      // tráfico a GPU (las instancias del tail ya las ocultó `setQuality`).
+      // El presupuesto del tier se aplica bajando el CONTEO de instancias
+      // dibujadas, no ocultando el tail con matrices de escala 0. Ocultar el tail
+      // no funcionaba: el upload parcial [0, drawn) de este mismo frame pisaba el
+      // upload completo que pedía `setQuality`, así que las instancias sobrantes
+      // nunca subían a GPU y quedaban congeladas en su última posición (partículas
+      // fantasma justo al degradar, que es cuando el equipo ya sufre). Con `count`
+      // no hay tail que subir: esas instancias directamente no se dibujan, y
+      // además se ahorra el vertex work que el governor quería ahorrar.
+      l.mesh.count = drawn;
       const attr = l.mesh.instanceMatrix;
       attr.clearUpdateRanges();
       if (drawn > 0) attr.addUpdateRange(0, drawn * 16); // 16 floats por matriz
@@ -253,19 +259,14 @@ export class CosmicExperience implements Experience {
     return null;
   }
 
-  /** Presupuesto de partículas (calidad adaptativa): oculta las que sobran del tier. */
+  /**
+   * Presupuesto de partículas (calidad adaptativa): fracción del campo que se
+   * dibuja. Sólo guarda el factor; el `update()` del mismo frame lo aplica como
+   * `mesh.count`. ARScene llama a `setQuality` antes de `update`, así que el
+   * recorte entra en el frame en curso.
+   */
   setQuality(scale: number): void {
     this.qScale = Math.max(0.05, Math.min(1, scale));
-    for (const l of this.layers) {
-      const total = l.end - l.start;
-      const drawn = Math.floor(total * this.qScale);
-      for (let local = drawn; local < total; local++)
-        l.mesh.setMatrixAt(local, HIDDEN_MATRIX);
-      // Al cambiar el tier reescribimos el tail oculto: forzamos un upload del
-      // buffer completo (sin rango parcial) para que esas instancias suban a GPU.
-      l.mesh.instanceMatrix.clearUpdateRanges();
-      l.mesh.instanceMatrix.needsUpdate = true;
-    }
   }
 
   dispose(): void {

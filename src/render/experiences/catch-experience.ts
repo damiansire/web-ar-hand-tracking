@@ -149,8 +149,9 @@ export class CatchExperience implements Experience {
         addCatcher(p.x, p.y, TIP_RADIUS * scale);
       }
     }
-    for (let i = markerCount; i < MAX_MARKERS; i++)
-      this.markers.setMatrixAt(i, HIDDEN_MATRIX);
+    // Los marcadores se escriben compactados al frente (uno por catcher activo):
+    // el conteo de dibujo es exactamente lo escrito, sin tail invisible.
+    this.markers.count = markerCount;
     this.markers.instanceMatrix.needsUpdate = true;
 
     const out = updateCatch(this.state, {
@@ -217,13 +218,13 @@ export class CatchExperience implements Experience {
       w++;
     }
     this.burstCount = w;
-    for (let i = 0; i < MAX_BURST; i++) {
-      const p = i < this.burstCount ? this.burst[i] : null;
-      this.burstMesh.setMatrixAt(
-        i,
-        p ? this.place(p.x, p.y, 7 * p.life + 1, 2) : HIDDEN_MATRIX,
-      );
+    // El pool de partículas queda compactado al frente, así que sólo escribimos y
+    // dibujamos las vivas (`count`) en vez de recorrer MAX_BURST ocultando el tail.
+    for (let i = 0; i < this.burstCount; i++) {
+      const p = this.burst[i];
+      if (p) this.burstMesh.setMatrixAt(i, this.place(p.x, p.y, 7 * p.life + 1, 2));
     }
+    this.burstMesh.count = this.burstCount;
     this.burstMesh.instanceMatrix.needsUpdate = true;
   }
 

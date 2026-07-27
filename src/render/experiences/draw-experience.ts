@@ -26,7 +26,7 @@ import {
 } from "../../domain/hand-gestures";
 import { Trail } from "../../domain/trail";
 import type { Experience, ExperienceContext } from "./experience";
-import { HIDDEN_MATRIX, makeInstanced } from "./instanced-mesh";
+import { makeInstanced } from "./instanced-mesh";
 
 const LIFETIME = 2.6; // s que tarda un punto en desvanecerse
 const MAX_PER_HAND = 280; // puntos vivos por mano (buffer circular)
@@ -126,8 +126,15 @@ export class DrawExperience implements Experience {
         );
       }
     }
-    for (let i = n; i < MAX_DOTS; i++) this.dots.setMatrixAt(i, HIDDEN_MATRIX);
-    this.dots.instanceMatrix.needsUpdate = true;
+    // Los puntos del trazo se escriben compactados al frente, así que el conteo de
+    // dibujo es `n`. Antes se rellenaba el tail con matrices de escala 0: con el
+    // lienzo vacío eran MAX_DOTS copias de Matrix4 por frame (más el upload
+    // completo del buffer) para no dibujar nada.
+    this.dots.count = n;
+    const attr = this.dots.instanceMatrix;
+    attr.clearUpdateRanges();
+    if (n > 0) attr.addUpdateRange(0, n * 16); // 16 floats por matriz
+    attr.needsUpdate = true;
   }
 
   hud(): string | null {
