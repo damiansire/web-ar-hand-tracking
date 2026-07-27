@@ -13,65 +13,39 @@
  *    el clásico error "ModuleFactory not set").
  *  - El archivo NO tiene `import`/`export`: así esbuild lo trata como script
  *    clásico (sin envoltorio de módulo) y funciona igual en el dev server de
- *    Vite y en el build. Por eso los tipos van inline en vez de importados.
+ *    Vite y en el build.
+ *
+ * El contrato de mensajes NO se transcribe acá: vive una sola vez en
+ * `worker-protocol.d.ts` como declaración ambiente global, que este script ve sin
+ * `import` y que `protocol.ts` re-exporta para el hilo principal. Antes había tres
+ * copias a mano y el "test de contrato" comparaba dos que no incluían a esta.
+ *
+ * Los tipos internos de MediaPipe llevan prefijo `Mp` porque, al ser un script
+ * clásico, toda declaración de este archivo es global para el proyecto.
  */
-
-// --- Contrato de mensajes (espejo de ./protocol.ts; ver nota arriba) ---
-interface InitRequest {
-  type: "init";
-  bundleUrl: string;
-  wasmBase: string;
-  modelUrl: string;
-  forceCpu: boolean;
-  // El hilo principal ya resolvió el gate por navegador (WebKit<17 → CPU) con la
-  // lógica testeada de ../domain/platform; acá sólo lo combinamos con el
-  // `hasWebGl2()` local del worker.
-  allowGpu: boolean;
-}
-interface FrameRequest {
-  type: "frame";
-  bitmap: ImageBitmap;
-  timestamp: number;
-}
-type WorkerRequest = InitRequest | FrameRequest;
-
-// --- Respuestas del worker (espejo de WorkerResponse en ./protocol.ts) ---
-// Tipadas para que cada post() valide su forma en compilación. El test
-// protocol.contract.test.ts asserta estructuralmente que este espejo y el de
-// protocol.ts no se desincronicen.
-interface NormalizedLandmark {
-  readonly x: number;
-  readonly y: number;
-  readonly z: number;
-}
-type WorkerResponse =
-  | { type: "ready"; delegate: "GPU" | "CPU" }
-  | { type: "init-error"; message: string }
-  | { type: "detect-error"; timestamp: number; message: string }
-  | { type: "result"; timestamp: number; hands: NormalizedLandmark[][] };
 
 // Interfaz mínima de lo que usamos de MediaPipe, en vez de `any`. El bundle CJS
 // no trae tipos en este worker clásico, pero acotamos la superficie que tocamos.
-interface HandLandmarkerLike {
+interface MpHandLandmarker {
   detectForVideo(
     bitmap: ImageBitmap,
     timestamp: number,
-  ): { landmarks?: NormalizedLandmark[][] };
+  ): { landmarks?: WorkerLandmark[][] };
 }
-interface MediaPipeModule {
+interface MpModule {
   FilesetResolver: { forVisionTasks(wasmBase: string): Promise<unknown> };
   HandLandmarker: {
-    createFromOptions(fileset: unknown, options: unknown): Promise<HandLandmarkerLike>;
+    createFromOptions(fileset: unknown, options: unknown): Promise<MpHandLandmarker>;
   };
 }
 
-let landmarker: HandLandmarkerLike | null = null;
+let landmarker: MpHandLandmarker | null = null;
 
-function post(message: WorkerResponse, transfer?: Transferable[]): void {
+function post(message: WorkerResponseMessage, transfer?: Transferable[]): void {
   (self as DedicatedWorkerGlobalScope).postMessage(message, transfer ?? []);
 }
 
-async function loadMediaPipe(bundleUrl: string): Promise<MediaPipeModule> {
+async function loadMediaPipe(bundleUrl: string): Promise<MpModule> {
   // El bundle .cjs del CDN se sirve con Content-Type `application/node`, que el
   // navegador rechaza en `importScripts` (exige un MIME de JavaScript). Lo
   // bajamos con fetch (CORS habilitado) y lo cargamos desde un Blob URL
@@ -91,7 +65,7 @@ async function loadMediaPipe(bundleUrl: string): Promise<MediaPipeModule> {
   } finally {
     URL.revokeObjectURL(blobUrl);
   }
-  return g.module.exports as MediaPipeModule;
+  return g.module.exports as MpModule;
 }
 
 /** ¿Hay un contexto WebGL2 vía OffscreenCanvas en este worker? */
@@ -149,7 +123,7 @@ function detect(bitmap: ImageBitmap, timestamp: number): void {
   }
 }
 
-self.onmessage = (event: MessageEvent<WorkerRequest>) => {
+self.onmessage = (event: MessageEvent<WorkerRequestMessage>) => {
   const msg = event.data;
   switch (msg.type) {
     case "init":
@@ -166,7 +140,7 @@ self.onmessage = (event: MessageEvent<WorkerRequest>) => {
       detect(msg.bitmap, msg.timestamp);
       break;
     default: {
-      // Guard de exhaustividad: un WorkerRequest nuevo sin manejar falla la
+      // Guard de exhaustividad: un WorkerRequestMessage nuevo sin manejar falla la
       // compilación en vez de ignorarse silenciosamente.
       const _exhaustive: never = msg;
       void _exhaustive;
