@@ -19,7 +19,35 @@ export interface InferenceLatencyStats {
   readonly p95Ms: number;
 }
 
+/**
+ * Salud del pipeline de inferencia, para diagnóstico. Sin esto, un worker mudo o
+ * una detección que falla en bucle se ven exactamente igual que "no hay manos en
+ * cámara": la app parece viva y el tracking está muerto.
+ */
+export interface InferenceHealth {
+  /** Cuadros que vencieron el watchdog sin respuesta del worker. */
+  readonly stalls: number;
+  /** `detect-error` seguidos (se resetea con el primer resultado bueno). */
+  readonly consecutiveDetectErrors: number;
+  /** Último mensaje de error del worker, o `null` si nunca falló. */
+  readonly lastError: string | null;
+}
+
 export type HandsListener = (hands: NormalizedLandmark[][]) => void;
+
+/** Aviso de que la inferencia dejó de funcionar (mensaje accionable para el usuario). */
+export type InferenceFailureListener = (message: string) => void;
+
+/**
+ * Tiempo sin respuesta del worker que se considera cuadro perdido. ~8x el p95
+ * medido (docs/perf/results.md): por debajo de eso es latencia normal, por encima
+ * el cuadro no vuelve más.
+ */
+const STALL_MS = 2000;
+/** Cuadros perdidos seguidos antes de avisar al shell (~6s de tracking congelado). */
+const MAX_STALLS = 3;
+/** `detect-error` seguidos antes de avisar (~1s a 30fps de detección fallando). */
+const MAX_DETECT_ERRORS = 30;
 
 /**
  * Inyectables para test: una fábrica de `Worker` fake y un `createImageBitmap`
@@ -31,6 +59,8 @@ export interface HandTrackerDeps {
   createWorker?: () => Worker;
   /** Captura del cuadro como ImageBitmap (por defecto el global del browser). */
   createImageBitmap?: typeof createImageBitmap;
+  /** Reloj monótono en ms (por defecto `performance.now`), inyectable para test. */
+  now?: () => number;
 }
 
 export class HandTracker {
@@ -52,6 +82,15 @@ export class HandTracker {
   // corresponde cada respuesta. Ventana de 120 muestras (~4s a 30fps).
   private readonly latency = new RollingStats(120);
   private inflightSentAt: number | null = null;
+  private readonly now: () => number;
+  // Salud del pipeline: cuadros que nunca volvieron (watchdog) y errores de
+  // detección seguidos. Un worker mudo o una detección que falla en bucle se ven
+  // igual que "no hay manos", así que se cuentan y se reportan.
+  private stalls = 0;
+  private consecutiveDetectErrors = 0;
+  private lastError: string | null = null;
+  private failureListener: InferenceFailureListener | null = null;
+  private failureNotified = false;
 
   constructor(deps: HandTrackerDeps = {}) {
     // Worker clásico (sin `type: "module"`): el worker no tiene imports ESM y
@@ -60,6 +99,7 @@ export class HandTracker {
       deps.createWorker ??
       (() => new Worker(new URL("./hand-landmarker.worker.ts", import.meta.url)));
     this.captureBitmap = deps.createImageBitmap ?? createImageBitmap;
+    this.now = deps.now ?? (() => performance.now());
     this.createWorker();
   }
 
@@ -104,6 +144,12 @@ export class HandTracker {
           this.ready = true;
           this.delegate = msg.delegate;
           this.worker.addEventListener("message", this.onResult);
+          // Listeners PERMANENTES de fallo del worker. `cleanup()` acaba de sacar
+          // los de la init, y sin estos un worker que muere después del ready
+          // (abort de WASM, cuelgue del delegate GPU) no genera ninguna señal: el
+          // gate de back-pressure queda tomado y el tracking se congela mudo.
+          this.worker.addEventListener("error", this.onWorkerFailure);
+          this.worker.addEventListener("messageerror", this.onWorkerFailure);
           resolve();
         } else if (msg.type === "init-error") {
           if (settled) return;
@@ -144,11 +190,22 @@ export class HandTracker {
   }
 
   /**
+   * Aviso de que la inferencia dejó de funcionar de forma persistente (worker
+   * mudo o detección fallando en bucle). El shell lo usa para mostrar un estado
+   * de error accionable en vez de dejar la app "viva pero ciega".
+   */
+  onInferenceFailure(listener: InferenceFailureListener): void {
+    this.failureListener = listener;
+  }
+
+  /**
    * Envía un cuadro del video al worker. Si todavía hay uno procesándose,
    * lo descarta (mejor saltear cuadros que acumular latencia).
    */
   async track(source: HTMLVideoElement, timestamp: number): Promise<void> {
-    if (!this.ready || !this.gate.tryAcquire()) return; // dropea si hay uno en vuelo
+    if (!this.ready) return;
+    this.releaseIfStalled();
+    if (!this.gate.tryAcquire()) return; // dropea si hay uno en vuelo
     const vw = source.videoWidth;
     const vh = source.videoHeight;
     if (!vw || !vh) {
@@ -174,7 +231,7 @@ export class HandTracker {
         return;
       }
       const req: WorkerRequest = { type: "frame", bitmap, timestamp };
-      this.inflightSentAt = performance.now();
+      this.inflightSentAt = this.now();
       this.worker.postMessage(req, [bitmap]);
     } catch {
       this.inflightSentAt = null;
@@ -187,6 +244,10 @@ export class HandTracker {
     if (msg.type === "result") {
       this.recordLatency();
       this.gate.release();
+      // Un resultado bueno cierra la racha de fallos: sólo nos importan los
+      // errores CONSECUTIVOS (una detección suelta que falla no es una avería).
+      this.consecutiveDetectErrors = 0;
+      this.stalls = 0;
       this.listener?.(msg.hands);
     } else if (msg.type === "detect-error") {
       // El cuadro en vuelo falló en el worker: liberamos el back-pressure para
@@ -194,13 +255,69 @@ export class HandTracker {
       // contabilizamos su latencia (no representa una detección real).
       this.inflightSentAt = null;
       this.gate.release();
+      // El worker manda un mensaje de error y antes se descartaba entero: la app
+      // quedaba viva pero ciega, sin señal para el usuario ni para el que
+      // diagnostica. Ahora se cuenta, se guarda y, si la racha no corta, se avisa.
+      this.lastError = msg.message;
+      this.consecutiveDetectErrors++;
+      if (this.consecutiveDetectErrors >= MAX_DETECT_ERRORS) {
+        this.notifyFailure(
+          `Se detuvo la detección de manos (${msg.message}). Recargá para reintentar.`,
+        );
+      }
     }
   };
+
+  /** Fallo duro del worker (murió o mandó algo no clonable) tras el `ready`. */
+  private onWorkerFailure = (event: Event) => {
+    // `ErrorEvent` trae `message`, `messageerror` no. Se comprueba en runtime en
+    // vez de asumir el tipo: `ErrorEvent` como global no existe en todos los
+    // entornos donde corre este cliente (por ejemplo Node, en los tests).
+    const detail: unknown = (event as { message?: unknown }).message;
+    const message =
+      typeof detail === "string" && detail !== ""
+        ? detail
+        : "el worker de inferencia dejó de responder";
+    this.lastError = message;
+    // El cuadro en vuelo nunca va a volver: soltamos el gate para no trabar el
+    // pipeline y avisamos, en vez de congelar el tracking en silencio.
+    this.inflightSentAt = null;
+    this.gate.release();
+    this.notifyFailure(
+      `Se detuvo la detección de manos (${message}). Recargá para reintentar.`,
+    );
+  };
+
+  /**
+   * Watchdog del gate de back-pressure: si el cuadro en vuelo lleva más de
+   * `STALL_MS` sin respuesta, no vuelve más. El gate no expira por diseño, así
+   * que sin esto un worker colgado dejaba `inFlight` tomado para siempre: cámara
+   * prendida, render a 60fps y la figura clavada donde estaba, sin ningún error.
+   */
+  private releaseIfStalled(): void {
+    if (this.inflightSentAt === null) return;
+    if (this.now() - this.inflightSentAt <= STALL_MS) return;
+    this.inflightSentAt = null;
+    this.gate.release();
+    this.stalls++;
+    if (this.stalls >= MAX_STALLS) {
+      this.notifyFailure(
+        "Se detuvo la detección de manos (el worker no responde). Recargá para reintentar.",
+      );
+    }
+  }
+
+  /** Avisa al shell una sola vez: el objetivo es un estado visible, no un flood. */
+  private notifyFailure(message: string): void {
+    if (this.failureNotified || this.disposed) return;
+    this.failureNotified = true;
+    this.failureListener?.(message);
+  }
 
   /** Cierra la muestra de latencia del cuadro en vuelo, si había uno. */
   private recordLatency(): void {
     if (this.inflightSentAt === null) return;
-    this.latency.push(performance.now() - this.inflightSentAt);
+    this.latency.push(this.now() - this.inflightSentAt);
     this.inflightSentAt = null;
   }
 
@@ -214,8 +331,19 @@ export class HandTracker {
     };
   }
 
+  /** Salud del pipeline de inferencia (cuadros perdidos, errores, último mensaje). */
+  getHealth(): InferenceHealth {
+    return {
+      stalls: this.stalls,
+      consecutiveDetectErrors: this.consecutiveDetectErrors,
+      lastError: this.lastError,
+    };
+  }
+
   dispose(): void {
     this.disposed = true;
+    this.worker.removeEventListener("error", this.onWorkerFailure);
+    this.worker.removeEventListener("messageerror", this.onWorkerFailure);
     this.worker.terminate();
   }
 }

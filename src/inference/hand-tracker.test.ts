@@ -45,13 +45,28 @@ class FakeWorker {
   }
 }
 
-function makeTracker(captureBitmap?: typeof createImageBitmap) {
+function makeTracker(captureBitmap?: typeof createImageBitmap, now?: () => number) {
   FakeWorker.instances = [];
   const tracker = new HandTracker({
     createWorker: () => new FakeWorker() as unknown as Worker,
     createImageBitmap: captureBitmap ?? (vi.fn() as unknown as typeof createImageBitmap),
+    ...(now ? { now } : {}),
   });
   return { tracker, worker: () => FakeWorker.instances.at(-1)! };
+}
+
+/** Tracker ya inicializado (init + ready), con el 'init' descartado de `posted`. */
+async function readyTracker(
+  captureBitmap?: typeof createImageBitmap,
+  now?: () => number,
+) {
+  const { tracker, worker } = makeTracker(captureBitmap, now);
+  const started = tracker.init();
+  worker().emit({ type: "ready", delegate: "GPU" });
+  await started;
+  const w = worker();
+  w.posted.length = 0;
+  return { tracker, worker: w };
 }
 
 /** <video> mínimo con tamaño válido para que track() intente capturar. */
@@ -217,5 +232,104 @@ describe("HandTracker", () => {
     w.posted.length = 0;
     await tracker.track(fakeVideo(), 2);
     expect(w.posted.some((m) => m.type === "frame")).toBe(true);
+  });
+});
+
+/**
+ * El gate de back-pressure no expira por diseño: sólo lo libera la respuesta del
+ * worker. Si el worker se muere DESPUÉS del `ready` (abort de WASM, cuelgue del
+ * delegate GPU, pérdida del contexto WebGL dentro del worker) esa respuesta no
+ * llega nunca y el gate queda tomado de por vida: la cámara sigue prendida, el
+ * render sigue a 60fps y la figura queda clavada, sin ningún error. Ese es el
+ * modo de falla que estos tests cubren.
+ */
+describe("HandTracker: watchdog y señalización de fallos", () => {
+  const captureOk = () =>
+    vi.fn(async () => fakeBitmap()) as unknown as typeof createImageBitmap;
+
+  it("un worker que nunca responde no deja el gate tomado para siempre", async () => {
+    let clock = 0;
+    const capture = captureOk();
+    const { tracker, worker } = await readyTracker(capture, () => clock);
+
+    await tracker.track(fakeVideo(), 1); // toma el gate; el worker no contesta
+    expect(worker.posted.filter((m) => m.type === "frame")).toHaveLength(1);
+
+    // Dentro de la ventana del watchdog el cuadro se sigue considerando en vuelo.
+    clock = 1500;
+    await tracker.track(fakeVideo(), 2);
+    expect(worker.posted.filter((m) => m.type === "frame")).toHaveLength(1);
+
+    // Pasada la ventana, el cuadro se da por perdido y el pipeline sigue.
+    clock = 3000;
+    await tracker.track(fakeVideo(), 3);
+    expect(worker.posted.filter((m) => m.type === "frame")).toHaveLength(2);
+    expect(tracker.getHealth().stalls).toBe(1);
+  });
+
+  it("tras varios cuadros perdidos seguidos avisa al shell con un mensaje accionable", async () => {
+    let clock = 0;
+    const { tracker } = await readyTracker(captureOk(), () => clock);
+    const failures: string[] = [];
+    tracker.onInferenceFailure((m) => failures.push(m));
+
+    for (let i = 0; i < 4; i++) {
+      await tracker.track(fakeVideo(), i);
+      clock += 3000; // cada cuadro vence el watchdog
+    }
+
+    expect(failures).toHaveLength(1); // avisa una sola vez, no floodea
+    expect(failures[0]).toContain("Recargá");
+  });
+
+  it("un 'error' del worker después del ready libera el gate y avisa", async () => {
+    const capture = captureOk();
+    const { tracker, worker } = await readyTracker(capture);
+    const failures: string[] = [];
+    tracker.onInferenceFailure((m) => failures.push(m));
+
+    await tracker.track(fakeVideo(), 1);
+    worker.posted.length = 0;
+    worker.emitError("wasm abort");
+
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain("wasm abort");
+    expect(tracker.getHealth().lastError).toBe("wasm abort");
+    // Gate liberado: el pipeline no queda trabado por el worker muerto.
+    await tracker.track(fakeVideo(), 2);
+    expect(worker.posted.some((m) => m.type === "frame")).toBe(true);
+  });
+
+  it("detect-error: cuenta la racha, la expone y avisa recién si no corta", async () => {
+    const capture = captureOk();
+    const { tracker, worker } = await readyTracker(capture);
+    const failures: string[] = [];
+    tracker.onInferenceFailure((m) => failures.push(m));
+
+    for (let i = 0; i < 29; i++) {
+      await tracker.track(fakeVideo(), i);
+      worker.emit({ type: "detect-error", timestamp: i, message: "detect boom" });
+    }
+    expect(tracker.getHealth().consecutiveDetectErrors).toBe(29);
+    expect(tracker.getHealth().lastError).toBe("detect boom");
+    expect(failures).toHaveLength(0); // todavía no es una avería
+
+    await tracker.track(fakeVideo(), 29);
+    worker.emit({ type: "detect-error", timestamp: 29, message: "detect boom" });
+    expect(failures).toHaveLength(1);
+    expect(failures[0]).toContain("detect boom");
+  });
+
+  it("un resultado bueno corta la racha de errores", async () => {
+    const capture = captureOk();
+    const { tracker, worker } = await readyTracker(capture);
+
+    await tracker.track(fakeVideo(), 1);
+    worker.emit({ type: "detect-error", timestamp: 1, message: "boom" });
+    expect(tracker.getHealth().consecutiveDetectErrors).toBe(1);
+
+    await tracker.track(fakeVideo(), 2);
+    worker.emit({ type: "result", timestamp: 2, hands: [] });
+    expect(tracker.getHealth().consecutiveDetectErrors).toBe(0);
   });
 });

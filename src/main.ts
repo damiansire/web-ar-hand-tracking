@@ -15,7 +15,11 @@ import {
 import { DEFAULT_FIGURE, type FigureKind } from "./domain/figures";
 import { experienceHint, type ExperienceKind } from "./domain/experiences";
 import { requestCamera, CameraError } from "./camera/camera";
-import { HandTracker, type InferenceLatencyStats } from "./inference/hand-tracker";
+import {
+  HandTracker,
+  type InferenceHealth,
+  type InferenceLatencyStats,
+} from "./inference/hand-tracker";
 import { FrameRateLimiter } from "./domain/frame-limiter";
 import type { ARScene } from "./render/ar-scene";
 import { permissionScreen, loadingScreen, errorScreen } from "./ui/screens";
@@ -30,6 +34,8 @@ export interface PerfSnapshot {
   readonly delegate: "GPU" | "CPU" | null;
   readonly fps: number | null;
   readonly inference: InferenceLatencyStats | null;
+  /** Salud del pipeline de inferencia (cuadros perdidos, errores de detección). */
+  readonly health: InferenceHealth | null;
 }
 
 declare global {
@@ -48,6 +54,7 @@ window.__arPerfSnapshot = (): PerfSnapshot => ({
   delegate: tracker?.delegate ?? null,
   fps: scene?.fps ?? null,
   inference: tracker?.getLatencyStats() ?? null,
+  health: tracker?.getHealth() ?? null,
 });
 
 let state: AppState = INITIAL_STATE;
@@ -156,6 +163,12 @@ function showFatal(message: string): void {
 
 async function startModel(): Promise<void> {
   tracker = new HandTracker();
+  // Un worker que se muere despues del ready, o una deteccion que falla en bucle,
+  // dejaban la app viva pero ciega: figura clavada, camara prendida y ningun
+  // aviso. Ahora eso degrada al mismo estado de error explicito que el resto.
+  tracker.onInferenceFailure((message) => {
+    dispatch({ type: "INFERENCE_FAILED", message });
+  });
   try {
     await tracker.init();
     dispatch({ type: "MODEL_LOADED" });

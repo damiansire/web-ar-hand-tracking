@@ -25,6 +25,8 @@ export type AppEvent =
   | { type: "MODEL_LOADED" }
   | { type: "MODEL_ERROR"; message: string }
   | { type: "CONTEXT_LOST"; message: string }
+  /** La inferencia dejó de funcionar de forma persistente (worker mudo o caído). */
+  | { type: "INFERENCE_FAILED"; message: string }
   | { type: "RETRY" };
 
 export const INITIAL_STATE: AppState = { status: "requesting-permission" };
@@ -55,6 +57,11 @@ export function transition(state: AppState, event: AppEvent): AppState {
       // que el resto de los fallos fatales, en vez de dejar la escena colgada
       // en un estado indefinido.
       if (event.type === "CONTEXT_LOST") return { status: "error", error: event.message };
+      // Mismo criterio para la inferencia: si el worker se murió o la detección
+      // falla en bucle, la app está "viva pero ciega". Un estado de error con
+      // mensaje es mejor que una figura clavada sin explicación.
+      if (event.type === "INFERENCE_FAILED")
+        return { status: "error", error: event.message };
       return state;
 
     default: {
