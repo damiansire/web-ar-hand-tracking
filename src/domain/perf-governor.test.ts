@@ -1,5 +1,11 @@
 import { describe, it, expect } from "vitest";
-import { PerfGovernor, QUALITY_TIERS, initialTierIndex } from "./perf-governor";
+import {
+  PerfGovernor,
+  QUALITY_TIERS,
+  initialTierIndex,
+  COOLDOWN,
+  DOWN_FRAMES,
+} from "./perf-governor";
 
 /** Alimenta N frames a un FPS dado y devuelve cuántas veces cambió el tier. */
 function feed(g: PerfGovernor, fps: number, frames: number): number {
@@ -69,13 +75,35 @@ describe("PerfGovernor", () => {
     expect(g.fps).toBe(60);
   });
 
-  it("respeta el cooldown: no cambia dos veces seguidas", () => {
+  // El cooldown es el mecanismo anti-oscilación: sin él, una caída transitoria de
+  // FPS desploma la calidad varios tiers seguidos y se ve como parpadeo de
+  // resolución/bloom/partículas. La versión anterior de este test assertaba
+  // `toBeGreaterThanOrEqual`, que es cierto por construcción (el índice sólo sube
+  // al degradar): pasaba también con COOLDOWN = 0 y el tier bajando dos veces más.
+  it("la ventana de cooldown es más larga que la de degradación", () => {
+    // Invariante de diseño: un cooldown más corto que DOWN_FRAMES no frenaría
+    // nada. Es además la precondición del test siguiente.
+    expect(COOLDOWN).toBeGreaterThan(DOWN_FRAMES);
+  });
+
+  it("respeta el cooldown: NO vuelve a bajar dentro de la ventana", () => {
     const g = new PerfGovernor(0);
-    feed(g, 20, 50); // fuerza una bajada
+    expect(feed(g, 20, 50)).toBe(1); // fuerza exactamente una bajada
     const tierAfterFirst = g.index;
-    // Inmediatamente después no debería re-bajar dentro del cooldown.
-    feed(g, 20, 100);
-    // El tier nunca retrocede (solo puede seguir bajando, no "rebotar" arriba).
-    expect(g.index).toBeGreaterThanOrEqual(tierAfterFirst);
+    // Frames de FPS pésimo suficientes para disparar OTRA degradación si el
+    // cooldown no existiera, pero menos que la ventana: el tier tiene que quedar
+    // EXACTAMENTE igual. El conteo es fijo a propósito; escalarlo con COOLDOWN
+    // volvería el test vacuo justo cuando el cooldown se rompe.
+    expect(feed(g, 20, DOWN_FRAMES + 5)).toBe(0);
+    expect(g.index).toBe(tierAfterFirst);
+  });
+
+  it("pasado el cooldown vuelve a bajar si el FPS sigue pésimo", () => {
+    const g = new PerfGovernor(0);
+    feed(g, 20, 50);
+    const tierAfterFirst = g.index;
+    // Cooldown completo + los frames de FPS bajo que exige la degradación.
+    expect(feed(g, 20, COOLDOWN + DOWN_FRAMES + 10)).toBe(1);
+    expect(g.index).toBe(tierAfterFirst + 1);
   });
 });

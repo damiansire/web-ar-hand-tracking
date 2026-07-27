@@ -49,10 +49,20 @@ export function initialTierIndex(h: DeviceHints): number {
 
 const DOWN_FPS = 45; // por debajo → candidato a bajar calidad
 const UP_FPS = 57; // por encima sostenido → candidato a subir
-const DOWN_FRAMES = 45; // ~0.75s en 60fps de FPS bajo antes de bajar
-const UP_FRAMES = 200; // ~3.3s de holgura antes de subir (anti-oscilación)
-const COOLDOWN = 120; // ~2s sin cambios tras un ajuste
 const EMA = 0.1; // suavizado del FPS (0..1)
+
+/** Frames de FPS bajo sostenido antes de bajar un tier (~0.75s a 60fps). */
+export const DOWN_FRAMES = 45;
+/** Frames de holgura sostenida antes de subir un tier (~3.3s, anti-oscilación). */
+export const UP_FRAMES = 200;
+/**
+ * Frames sin ningún ajuste después de cambiar de tier (~2s a 60fps). Es el
+ * mecanismo anti-oscilación: sin él, una caída transitoria de FPS desploma la
+ * calidad de "alta" a "mínima" en pocos frames y el usuario ve la resolución, el
+ * bloom y las partículas parpadear. Exportado para que el test lo asserte contra
+ * este valor en vez de duplicar el número mágico.
+ */
+export const COOLDOWN = 120;
 
 /**
  * Decide el tier según un EMA del FPS. Devuelve `true` desde `sample()` cuando el
