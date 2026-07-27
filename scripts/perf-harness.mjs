@@ -32,7 +32,10 @@
  * segundos en estabilizarse) y recién ahí muestrea `SAMPLE_MS`.
  *
  * Uso: npm run build && npm run perf:harness
- * Escribe docs/perf/results.md con los números reales medidos.
+ * Escribe docs/perf/results.md con los números reales medidos. Una corrida en la
+ * que alguna condición no completó la medición NO es evidencia de rendimiento:
+ * su reporte va a docs/perf/results-failed.md (ignorado por git) en vez de pisar
+ * la última medición buena que el README linkea como prueba.
  */
 import { createServer } from "node:http";
 import { readFile, mkdir, writeFile } from "node:fs/promises";
@@ -260,17 +263,18 @@ async function main() {
   console.log("\n================ RESULTADOS ================");
   console.log(JSON.stringify(results, null, 2));
 
-  await writeReport(results);
-
   const anyFailed = results.some((r) => r.error || !r.final);
+  const reportFile = await writeReport(results, anyFailed);
   if (anyFailed) {
-    console.error("\n[perf-harness] al menos una condición no completó la medición.");
+    console.error(
+      `\n[perf-harness] al menos una condición no completó la medición. El reporte quedó en ${reportFile}; docs/perf/results.md conserva la última medición completa.`,
+    );
     process.exit(1);
   }
   console.log("\n[perf-harness] OK — ver docs/perf/results.md");
 }
 
-async function writeReport(results) {
+async function writeReport(results, failed = false) {
   const dir = join(ROOT, "docs", "perf");
   await mkdir(dir, { recursive: true });
   const now = new Date().toISOString();
@@ -356,8 +360,10 @@ ${JSON.stringify(results, null, 2)}
 
 </details>
 `;
-  await writeFile(join(dir, "results.md"), md, "utf8");
-  console.log(`\n[report] docs/perf/results.md escrito.`);
+  const name = failed ? "results-failed.md" : "results.md";
+  await writeFile(join(dir, name), md, "utf8");
+  console.log(`\n[report] docs/perf/${name} escrito.`);
+  return `docs/perf/${name}`;
 }
 
 await main();

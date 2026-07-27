@@ -6,6 +6,9 @@ dist/
 scripts/webgpu-smoke.png
 scripts/webgpu-smoke-chrome-*.png
 scripts/perf-harness-*.png
+# Reporte de una corrida FALLIDA del perf-harness: sirve para diagnosticarla, no
+# es evidencia de rendimiento, asi que no se versiona (la buena es results.md).
+docs/perf/results-failed.md
 test-results/
 playwright-report/
 coverage/
