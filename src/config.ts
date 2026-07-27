@@ -5,8 +5,14 @@
  * paquete `@mediapipe/tasks-vision` instalado. Si en el futuro se quieren
  * self-hostear, basta con copiar el directorio `wasm` y el `.task` a `public/`
  * y cambiar estas dos URLs por rutas locales.
+ *
+ * El paquete npm NO se importa desde ningún módulo: existe sólo para fijar y
+ * auditar (`npm audit`) la versión que el worker baja del CDN en runtime. Por eso
+ * `package.json` lo declara con versión EXACTA (sin caret) y `config.test.ts`
+ * asserta que esta constante y la del manifest coincidan: con caret, un bump de
+ * Dependabot movía lo auditado y dejaba intacto lo ejecutado, en silencio.
  */
-const TASKS_VISION_VERSION = "0.10.35";
+export const TASKS_VISION_VERSION = "0.10.35";
 
 export const MEDIAPIPE = {
   /**
