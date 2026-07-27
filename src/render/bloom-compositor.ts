@@ -64,6 +64,14 @@ export class BloomCompositor {
    * `post.render()` puede ser async (backend WebGPU): lo envolvemos con un guard
    * que descarta el frame si hay uno en vuelo (no bloquea ni encola en backends
    * lentos como SwiftShader).
+   *
+   * El guard se libera SIEMPRE, también si `render()` lanza de forma sincrónica
+   * (compilación de nodos TSL, backend caído). Antes el `.finally` sólo se
+   * registraba si la promesa llegaba a construirse: una excepción sincrónica
+   * dejaba `inFlight` en true para siempre y todos los frames siguientes salían
+   * por el `return` del guard, con el canvas congelado y sin camino de
+   * recuperación. Ante ese fallo degradamos igual que ante un fallo de `init`:
+   * `post = null` y render directo (sin glow, pero nunca congelado).
    */
   present(
     renderer: WebGPURenderer,
@@ -71,13 +79,20 @@ export class BloomCompositor {
     camera: OrthographicCamera,
     hasExperience: boolean,
   ): void {
-    const useBloom = this.post !== null && this.enabled && hasExperience;
+    const post = this.post;
+    const useBloom = post !== null && this.enabled && hasExperience;
     if (useBloom) {
       if (this.inFlight) return;
       this.inFlight = true;
-      void Promise.resolve(this.post!.render()).finally(() => {
+      try {
+        void Promise.resolve(post.render()).finally(() => {
+          this.inFlight = false;
+        });
+      } catch {
         this.inFlight = false;
-      });
+        this.post = null;
+        renderer.render(scene, camera);
+      }
     } else {
       renderer.render(scene, camera);
     }
