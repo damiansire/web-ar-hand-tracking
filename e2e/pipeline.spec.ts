@@ -50,6 +50,19 @@ test.describe("pipeline cámara → worker → render", () => {
 
     const snapshot = await page.evaluate(() => window.__arPerfSnapshot!());
     expect(["GPU", "CPU"]).toContain(snapshot.delegate);
+
+    // Y una detección de VERDAD completó la ida y vuelta al worker: la latencia
+    // instrumentada en `HandTracker` registró al menos una muestra. Esto ata la
+    // regresión más cara del pipeline: si la primera inferencia del delegate se
+    // cuelga (p. ej. compilación de shaders GPU de ~30s sin el warmup de la init
+    // del worker), el watchdog mata el tracking y este conteo se queda en cero
+    // mientras el canvas sigue lindo en pantalla.
+    await expect
+      .poll(
+        () => page.evaluate(() => window.__arPerfSnapshot?.().inference?.count ?? 0),
+        { timeout: 20_000 },
+      )
+      .toBeGreaterThan(0);
   });
 
   test("con cámara denegada, la app degrada a la pantalla de error sin crashear", async ({

@@ -105,6 +105,40 @@ function hasWebGl2(): boolean {
   }
 }
 
+/**
+ * Ejecuta UNA detección sintética para que el delegate compile sus kernels
+ * ANTES de declarar el worker listo. La primera `detectForVideo` no es como
+ * las demás: con delegate GPU compila los shaders del grafo completo (medido
+ * en una Intel Iris Xe vía ANGLE/D3D11: 25-30 segundos, tanto en Chromium como
+ * en Chrome real). Si ese costo cae DESPUÉS del `ready`, el watchdog del
+ * cliente (STALL_MS en `hand-tracker.ts`) lo confunde con un worker muerto y
+ * mata el pipeline con "Se detuvo la detección de manos": la app moría en esa
+ * clase de hardware. Pagándolo acá, un delegate que no calienta dentro del
+ * presupuesto de `HandTracker.init` dispara el timeout y el reintento
+ * `forceCpu` — exactamente el fallback que ese timeout promete cubrir.
+ *
+ * El timestamp 1 es menor que cualquier `performance.now()` que manda el main
+ * thread después, así que no rompe la monotonía que exige el running mode
+ * VIDEO. Sin OffscreenCanvas no hay warmup (se degrada al comportamiento
+ * previo); un fallo de la detección en sí SÍ se propaga, porque un delegate
+ * que no puede inferir debe caer al camino de `init-error` → reintento CPU.
+ */
+function warmUp(lm: MpHandLandmarker): void {
+  let bitmap: ImageBitmap;
+  try {
+    const canvas = new OffscreenCanvas(2, 2);
+    if (!canvas.getContext("2d")) return;
+    bitmap = canvas.transferToImageBitmap();
+  } catch {
+    return;
+  }
+  try {
+    lm.detectForVideo(bitmap, 1);
+  } finally {
+    bitmap.close();
+  }
+}
+
 async function init(
   bundleUrl: string,
   bundleSha256: string,
@@ -121,11 +155,14 @@ async function init(
   // combinamos con el `hasWebGl2()` real del worker y con `forceCpu` (un intento
   // previo de GPU que no respondió a tiempo).
   const delegate = !forceCpu && allowGpu && hasWebGl2() ? "GPU" : "CPU";
-  landmarker = await mp.HandLandmarker.createFromOptions(fileset, {
+  const lm = await mp.HandLandmarker.createFromOptions(fileset, {
     baseOptions: { modelAssetPath: modelUrl, delegate },
     runningMode: "VIDEO",
     numHands: 2,
   });
+  // El `ready` solo se emite con el pipeline CALIENTE: ver `warmUp`.
+  warmUp(lm);
+  landmarker = lm;
   post({ type: "ready", delegate });
 }
 

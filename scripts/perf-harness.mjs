@@ -8,22 +8,33 @@
  * `window.__arPerfSnapshot` de `src/main.ts`).
  *
  * Condiciones:
- *   A) "webgl2-gpu-delegate" — Chromium normal con WebGL2 (swiftshader,
- *      mismos flags que scripts/webgpu-smoke.mjs). `hasWebGl2() === true` y
- *      el user-agent no es WebKit viejo, así que `supportsGpuDelegate()`
- *      (`src/domain/platform.ts`) autoriza el delegate GPU de MediaPipe (nota:
- *      en CI headless corre sobre un rasterizador de software, no una GPU
- *      física; documentado en el resultado — el código path es el mismo que
- *      corre en una GPU real).
- *   B) "cpu-fallback" — MISMO Chromium/WebGL2 (el render de Three.js sigue
- *      andando), pero con el user-agent spoofeado a Safari 16 (WebKit < 17).
- *      Es el fallback CPU REAL que ya implementa la app: `supportsGpuDelegate`
- *      deniega el delegate GPU en WebKit < 17 (ver el comentario de
- *      `platform.ts`), así que el worker recibe `allowGpu:false` y usa CPU —
- *      el mismo camino que corre en un Safari/iPhone real. (Deshabilitar
- *      WebGL del lado del browser, en cambio, tumba TAMBIÉN el renderer 3D —
- *      no aísla el delegate de MediaPipe; se probó y el `ARScene.create()`
- *      falla entero, así que no es la condición correcta para esto.)
+ *   A) "gate-abierto" — Chromium (headless nuevo) con WebGL2 sobre la GPU
+ *      REAL de la máquina (`--use-angle=d3d11` en Windows; ver `launchArgs`).
+ *      `supportsGpuDelegate()` (`src/domain/platform.ts`) AUTORIZA el delegate
+ *      GPU, y la app elige sola: si el warmup del delegate GPU no entra en el
+ *      presupuesto de `HandTracker.init` (en esta máquina la primera
+ *      inferencia GPU compila shaders ~25-30s, medido tanto en Chromium como
+ *      en Chrome real), la app reintenta con CPU por diseño. La columna
+ *      "Delegate real" del reporte dice qué terminó corriendo; el renderer
+ *      WebGL real queda registrado por condición. Forzar swiftshader acá
+ *      (como hace el smoke de CI, que no tiene GPU) se probó y NO puede
+ *      completar una medición: la inferencia sobre un rasterizador por
+ *      software tarda >2s por cuadro y el watchdog de `HandTracker`
+ *      (STALL_MS) corta la sesión a mitad de la ventana de muestreo.
+ *   B) "cpu-forzado" — MISMO Chromium/WebGL2 (el render de Three.js sigue
+ *      andando), pero con `navigator.userAgent` spoofeado a Safari 16
+ *      (WebKit < 17) SOLO en el main thread, vía `addInitScript`. Es el
+ *      fallback CPU REAL que ya implementa la app: `supportsGpuDelegate` corre
+ *      en el main thread (`hand-tracker.ts`), lee ese UA, deniega el delegate
+ *      GPU y el worker recibe `allowGpu:false` — el mismo camino que corre en
+ *      un Safari/iPhone real. Dos alternativas se probaron y NO sirven:
+ *      deshabilitar WebGL del lado del browser tumba TAMBIÉN el renderer 3D
+ *      (`ARScene.create()` falla entero); y spoofear el UA a nivel de contexto
+ *      de Playwright se lo cambia además al WORKER, donde el propio MediaPipe
+ *      sniffea el UA y toma un camino "WebKit" que en Chromium muere con
+ *      `document is not defined` en la init (era la causa de la condición
+ *      FALLIDA que este harness versionó durante semanas). Lo que la condición
+ *      quiere aislar es el gate PROPIO de la app, y ese vive en el main thread.
  *
  * Para cada condición: sirve dist/, mockea `getUserMedia` con un
  * `<canvas>.captureStream()` animado, hace clic en "Activar cámara", espera a
@@ -56,6 +67,21 @@ const WARMUP_MS = Number(process.env.PERF_WARMUP_MS ?? 5000);
 // browser (que también usa el renderer 3D, no sólo MediaPipe).
 const WEBKIT16_UA =
   "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_6) AppleWebKit/605.1.15 (KHTML, like Gecko) Version/16.5 Safari/605.1.15";
+
+/**
+ * Se serializa e inyecta vía addInitScript: spoofea `navigator.userAgent` SOLO
+ * en el main thread. El worker conserva su UA real a propósito: MediaPipe
+ * también sniffea el UA dentro del worker y con un UA WebKit toma un camino
+ * que en Chromium muere con `document is not defined` (ver el bloque de
+ * condiciones arriba). El único consumidor del UA que la condición quiere
+ * gobernar es `supportsGpuDelegate`, que corre en el main thread.
+ */
+function spoofMainThreadUserAgent(ua) {
+  Object.defineProperty(Navigator.prototype, "userAgent", {
+    configurable: true,
+    get: () => ua,
+  });
+}
 
 const require = createRequire(import.meta.url);
 async function resolvePlaywright() {
@@ -157,36 +183,55 @@ function installFakeCamera() {
  * Timeout de espera generoso (90s): `HandTracker.init()` intenta GPU primero
  * (timeout interno 15s) y si no responde reintenta forzando CPU (timeout
  * interno 30s) — hasta 45s de fallback interno de la propia app antes de
- * siquiera considerar que algo está mal. Bajo la contención de CPU de un
- * runner headless compartido (ver los FPS bajos en `results.md`), ese
+ * siquiera considerar que algo está mal. Bajo contención de CPU (descarga del
+ * modelo + compilación WASM + init del delegate compartiendo la máquina), ese
  * fallback interno puede tardar su presupuesto completo.
  */
-async function runCondition(name, browser, base, contextOptions = {}) {
+async function runCondition(name, browser, base, spoofUserAgent = null) {
   console.log(
-    `\n[condición ${name}] contexto: ${JSON.stringify(contextOptions) || "(default)"}`,
+    `\n[condición ${name}] spoof de UA en main thread: ${spoofUserAgent ?? "(no)"}`,
   );
-  const context = await browser.newContext(contextOptions);
-  const page = await context.newPage();
+  const context = await browser.newContext();
   const consoleErrors = [];
-  page.on("pageerror", (e) => consoleErrors.push(String(e)));
-  page.on("console", (m) => {
-    if (m.type() === "error") consoleErrors.push(`[console.error] ${m.text()}`);
-  });
-
-  await page.addInitScript(installFakeCamera);
-  await page.goto(base, { waitUntil: "load" });
-
-  await page.getByRole("button", { name: "Activar cámara" }).click();
-
   const result = {
     name,
-    contextOptions,
+    spoofUserAgent,
+    webglRenderer: null,
     error: null,
     samples: [],
     final: null,
     consoleErrors,
   };
+  // TODO el ciclo de vida va dentro del try: si el goto o el click fallan (botón
+  // que no aparece, server caído) la condición debe registrar su error y cerrar
+  // el contexto igual, no matar el proceso dejando Chromium y el server
+  // huérfanos y el reporte sin escribir.
   try {
+    const page = await context.newPage();
+    page.on("pageerror", (e) => consoleErrors.push(String(e)));
+    page.on("console", (m) => {
+      if (m.type() === "error") consoleErrors.push(`[console.error] ${m.text()}`);
+    });
+
+    await page.addInitScript(installFakeCamera);
+    if (spoofUserAgent) {
+      await page.addInitScript(spoofMainThreadUserAgent, spoofUserAgent);
+    }
+    await page.goto(base, { waitUntil: "load" });
+
+    // Evidencia del entorno real de la condición: qué renderer WebGL tocó.
+    result.webglRenderer = await page.evaluate(() => {
+      const gl = document.createElement("canvas").getContext("webgl2");
+      if (!gl) return "sin WebGL2";
+      const ext = gl.getExtension("WEBGL_debug_renderer_info");
+      return String(
+        ext ? gl.getParameter(ext.UNMASKED_RENDERER_WEBGL) : gl.getParameter(gl.RENDERER),
+      );
+    });
+    console.log(`[condición ${name}] WebGL: ${result.webglRenderer}`);
+
+    await page.getByRole("button", { name: "Activar cámara" }).click();
+
     await page.locator("canvas.ar-canvas").waitFor({ state: "visible", timeout: 90_000 });
 
     // Warm-up sin contar: el FPS EMA de PerfGovernor (alpha=0.1) tarda unos
@@ -205,21 +250,33 @@ async function runCondition(name, browser, base, contextOptions = {}) {
     result.minFps = result.samples.length
       ? Math.min(...result.samples.map((s) => s.fps ?? Infinity))
       : null;
+    // Una condición cuya app terminó en la pantalla de error (p. ej. el watchdog
+    // de inferencia disparó a mitad de la ventana) no es una medición: el
+    // snapshot devuelve delegate=null tras el cleanup. Se marca como error en
+    // vez de dejar que una fila "—" pase por resultado.
+    if (result.final && result.final.delegate === null) {
+      result.error =
+        "la app degradó a la pantalla de error durante la medición (snapshot con delegate=null)";
+      result.final = null;
+    }
   } catch (e) {
     result.error = String(e?.message || e);
     try {
+      const page = context.pages().at(-1);
       const shot = join(
         __dirname,
         `perf-harness-fail-${name.replace(/[^\w-]+/g, "_")}.png`,
       );
-      await page.screenshot({ path: shot });
-      console.error(`[condición ${name}] falló; captura en ${shot}`);
+      if (page) {
+        await page.screenshot({ path: shot });
+        console.error(`[condición ${name}] falló; captura en ${shot}`);
+      }
     } catch {
       /* si ni la captura funciona, seguimos con el error original */
     }
+  } finally {
+    await context.close();
   }
-
-  await context.close();
   return result;
 }
 
@@ -232,33 +289,42 @@ async function main() {
   const base = `http://127.0.0.1:${server.address().port}`;
   console.log(`[server] dist servido en ${base}`);
 
-  // WebGL2 vía swiftshader; lo que cambia entre condiciones es el user-agent
-  // del contexto, que es lo que gatea el delegate en `supportsGpuDelegate`
-  // (ver el comentario grande al inicio del archivo). Un browser NUEVO por
+  // GPU REAL de la máquina, no swiftshader: el headless "nuevo" de Chromium sí
+  // puede usar la GPU física con ANGLE (en Windows, D3D11). Con swiftshader la
+  // inferencia GPU de MediaPipe tarda >2s por cuadro y el watchdog de la app
+  // aborta la sesión a mitad de la medición (ver el bloque de condiciones).
+  // Lo que cambia entre condiciones es el user-agent del MAIN THREAD, que es
+  // lo que gatea el delegate en `supportsGpuDelegate`. Un browser NUEVO por
   // condición (en vez de reusar uno) para que la contención de CPU de una
   // condición no se arrastre a la siguiente.
   const launchArgs = [
-    "--enable-unsafe-webgpu",
+    "--headless=new",
     "--use-gl=angle",
-    "--use-angle=swiftshader",
-    "--ignore-gpu-blocklist",
+    `--use-angle=${process.platform === "win32" ? "d3d11" : "default"}`,
+    "--enable-unsafe-webgpu",
   ];
 
   const conditions = [
-    { name: "webgl2-gpu-delegate (Chromium normal)", contextOptions: {} },
+    { name: "gate-abierto (Chromium normal, la app elige delegate)", spoofUserAgent: null },
     {
-      name: "cpu-fallback (UA Safari 16, WebKit < 17)",
-      contextOptions: { userAgent: WEBKIT16_UA },
+      name: "cpu-forzado (UA Safari 16, WebKit < 17)",
+      spoofUserAgent: WEBKIT16_UA,
     },
   ];
 
   const results = [];
-  for (const c of conditions) {
-    const browser = await chromium.launch({ headless: true, args: launchArgs });
-    results.push(await runCondition(c.name, browser, base, c.contextOptions));
-    await browser.close();
+  try {
+    for (const c of conditions) {
+      const browser = await chromium.launch({ headless: true, args: launchArgs });
+      try {
+        results.push(await runCondition(c.name, browser, base, c.spoofUserAgent));
+      } finally {
+        await browser.close();
+      }
+    }
+  } finally {
+    server.close();
   }
-  server.close();
 
   console.log("\n================ RESULTADOS ================");
   console.log(JSON.stringify(results, null, 2));
@@ -321,11 +387,21 @@ expuesto por \`src/main.ts\`. "FPS (EMA final)" es la última muestra de la
 ventana de medición (tras el warm-up); "FPS mínimo" es el piso observado
 dentro de esa misma ventana.
 
-Las dos condiciones corren en el **mismo** Chromium/WebGL2 (swiftshader); lo
-único que cambia es el \`userAgent\` del contexto de Playwright. La condición
-CPU spoofea un Safari 16 real (WebKit < 17), que es el mismo gate que usa
+Las dos condiciones corren en el **mismo** Chromium (headless nuevo) sobre la
+GPU real de la máquina (ANGLE; el renderer exacto queda registrado por
+condición más abajo); lo único que cambia es el \`navigator.userAgent\` del
+main thread, spoofeado por \`addInitScript\`. La condición CPU spoofea un
+Safari 16 real (WebKit < 17), que es el mismo gate que usa
 \`supportsGpuDelegate()\` (\`src/domain/platform.ts\`) para negar el delegate
-GPU en un iPhone/Mac real — no es un flag inventado para el harness.
+GPU en un iPhone/Mac real — no es un flag inventado para el harness. El spoof
+es sólo del main thread a propósito: MediaPipe también sniffea el UA dentro
+del worker y con un UA WebKit toma un camino que en Chromium no existe
+(\`document is not defined\`); el gate de la app, que es lo que la condición
+aísla, corre en el main thread.
+
+### Entorno WebGL por condición
+
+${results.map((r) => `- **${r.name}**: \`${r.webglRenderer ?? "no registrado"}\``).join("\n")}
 
 ## Resultados
 
@@ -335,18 +411,17 @@ ${rows}
 
 ## Caveats
 
-- Chromium headless en este entorno no tiene GPU física: **ambas** condiciones
-  corren sobre \`swiftshader\` (rasterizador por software) para el render 3D y
-  sobre CPU real para MediaPipe cuando el delegate cae a "CPU". El FPS
-  absoluto es un piso respecto de un dispositivo con GPU física (donde el
-  delegate GPU de MediaPipe es varias veces más rápido); el valor de esta
-  medición es confirmar que ambos code paths se ejercitan sin errores y
-  comparar su costo relativo en igualdad de hardware.
-- La condición CPU spoofea el \`userAgent\` a un Safari 16 real; no deshabilita
-  WebGL del lado del browser. Deshabilitarlo (\`--disable-webgl\`) se probó
-  primero y tumbaba TAMBIÉN el renderer 3D (\`ARScene.create()\` falla entero
-  sin WebGL2 disponible), no sólo el delegate de MediaPipe — no aislaba la
-  variable que queríamos medir.
+- Las condiciones corren sobre la GPU real de esta máquina (ver "Entorno WebGL
+  por condición"): los números son representativos de un equipo de escritorio
+  con GPU integrada, no de un móvil. Forzar \`swiftshader\` (rasterizador por
+  software, como en el smoke de CI) se probó y no puede completar esta
+  medición: la inferencia GPU tarda ahí >2s por cuadro y el watchdog de
+  \`HandTracker\` corta la sesión por diseño.
+- La condición CPU spoofea el \`userAgent\` del main thread a un Safari 16
+  real; no deshabilita WebGL del lado del browser. Deshabilitarlo
+  (\`--disable-webgl\`) se probó primero y tumbaba TAMBIÉN el renderer 3D
+  (\`ARScene.create()\` falla entero sin WebGL2 disponible), no sólo el
+  delegate de MediaPipe — no aislaba la variable que queríamos medir.
 - No hay una mano real frente a la cámara (video sintético); la latencia de
   \`detectForVideo\` puede variar algo con contenido real, pero el costo de
   decodificación/preprocesado del cuadro es el mismo.
