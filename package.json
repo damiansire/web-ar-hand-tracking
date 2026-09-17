@@ -44,13 +44,13 @@
   },
   "dependencies": {
     "@mediapipe/tasks-vision": "0.10.35",
-    "three": "^0.185.1"
+    "three": "^0.186.0"
   },
   "devDependencies": {
     "@eslint/js": "^10.0.1",
     "@playwright/test": "^1.61.1",
     "@types/node": "^26.1.1",
-    "@types/three": "^0.185.1",
+    "@types/three": "^0.186.0",
     "@vitest/coverage-v8": "^4.1.10",
     "eslint": "^10.5.0",
     "eslint-config-prettier": "^10.1.8",
