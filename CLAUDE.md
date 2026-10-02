@@ -6,22 +6,20 @@ Web Worker con MediaPipe Hand Landmarker -> escena Three.js. TypeScript estricto
 Vite, sin backend, deploy estático a GitHub Pages.
 
 Arquetipo: **app web creativa de AR client-side** (demo y showcase técnico).
-Stacks contra los que se mide: `node-ts`, `creative` (Three.js, MediaPipe,
-diseño), `web-mdn` (Web Workers), más las barras transversales de arquitectura y
-TypeScript.
+La barra de abajo cubre TypeScript y Node, Web Workers, Three.js, MediaPipe y UI,
+más las reglas transversales de arquitectura.
 
-## Estándar nivel mundial
+## Barra de calidad
 
 Esta sección es **build-time**: el código nace contra esta barra, no se audita
 contra ella al final. Antes de escribir una feature, leé la regla que la toca.
-Cada regla cita el saqueo del corpus del que sale (repo o spec real, no opinión).
+Cada regla que sale de un proyecto o una especificación abierta enlaza su fuente
+(repo o spec real, no opinión).
 
 ### Piso de Craft (a-j)
 
 Regla raíz, "intención clara / zero-guessing": el código tiene que ser tan
 evidente que alguien senior entienda el **porqué** sin preguntar ni ejecutarlo.
-_(corpus: `refs/architecture`, barra transversal destilada de la regla de
-intención clara)_
 
 - **a. El nombre revela la intención de dominio, no el mecanismo.** Nada de
   `data`, `handle`, `manager`, `process` donde el dominio tiene un término
@@ -58,8 +56,8 @@ intención clara)_
 
 Que el artefacto demuestre lo que es en ~30 segundos, sin abrir el código. No
 sube el craft: evita que buen trabajo quede **sub-descripto**.
-_(corpus: `refs/architecture`, cluster de legibilidad en frío; refs OSS: guía de
-GitLab para OSS y el README de 5 partes de GitHub)_
+_(refs: [guía de GitLab para arrancar un proyecto OSS](https://about.gitlab.com/blog/how-to-start-a-great-oss-project/)
+y [documentación de GitHub sobre READMEs](https://docs.github.com/en/repositories/managing-your-repositorys-settings-and-features/customizing-your-repository/about-readmes))_
 
 - **k. El README lidera con prueba visible y framing honesto.** Este repo es un
   artefacto **visual**: la descripción textual NO cuenta como prueba. El primer
@@ -69,36 +67,48 @@ GitLab para OSS y el README de 5 partes de GitHub)_
   reproducible.** El repo promete performance (worker, governor, harness) y
   privacidad: cada promesa necesita su prueba ejecutable, con entorno declarado
   (máquina, versiones, metodología). Un documento de resultados que viene de una
-  corrida fallida no cumple. _(ref: benchsuite de ripgrep, TechEmpower)_
+  corrida fallida no cumple. _(ref: la benchsuite de
+  [ripgrep](https://github.com/BurntSushi/ripgrep) y
+  [TechEmpower](https://github.com/TechEmpower/FrameworkBenchmarks))_
 - **m. Framing honesto: se declara el límite del claim.** Decí dónde NO aplica
   (oclusión calibrada para mano derecha, e2e fuera de CI, matriz de navegadores
   real). La vulnerabilidad calibrada da más confianza que un número pulido.
-  _(ref: Gallant / ripgrep, "not universally faster")_
+  _(ref: [Andrew Gallant sobre ripgrep](https://burntsushi.net/ripgrep/), "not
+  universally faster")_
 
 ### Techo de Craft
 
 El piso es `violated` / `ok`. Esto es lo que mueve el repo de "correcto" a
 "referencia" (se copia tal cual). Idea rectora: **la calidad se vuelve un hecho
 chequeado por la máquina, no una convención**.
-_(corpus: `refs/architecture`, techo de craft, consenso 2026-07-09)_
 
 - **Nombres y superficie:** imposible de malusar, no solo legible. Un contrato
   de boundary bien especificado y con UNA sola fuente (el protocolo del worker
-  se declara una vez, no se transcribe a mano en tres lados). _(LLVM,
-  type-state-builder)_
+  se declara una vez, no se transcribe a mano en tres lados). _(ref:
+  [estándares de código de LLVM](https://llvm.org/docs/CodingStandards.html),
+  [type-state-builder](https://docs.rs/type-state-builder/latest/type_state_builder/))_
 - **Encapsulamiento:** el boundary es un hecho de CI, allowlist default-deny de
-  imports. _(import-boss de Kubernetes)_ En este repo: reglas
-  `no-restricted-imports` por carpeta en `eslint.config.js`.
+  imports. _(ref: [import-restrictions de
+  Kubernetes](https://github.com/kubernetes/kubernetes/blob/master/staging/publishing/import-restrictions.yaml))_
+  En este repo: reglas `no-restricted-imports` por carpeta en `eslint.config.js`.
 - **Integridad de estado:** invariante observable e inyectado con fallas. Un
   `assert` es una PRUEBA verificada en tests, distinto de un comentario
-  "esto nunca pasa". _(SQLite, PostgreSQL)_
+  "esto nunca pasa". _(ref: [asserts de SQLite](https://www.sqlite.org/assert.html),
+  [cómo testea SQLite](https://sqlite.org/testing.html),
+  [WAL de PostgreSQL](https://www.postgresql.org/docs/current/wal-intro.html))_
 - **Observabilidad:** el contexto se captura en el ORIGEN y se renderiza
-  diferido. _(tokio-rs/tracing-error)_
+  diferido. _(ref:
+  [tracing-error](https://github.com/tokio-rs/tracing/blob/master/tracing-error/src/lib.rs))_
 - **Resiliencia:** cap exponencial finito, jitter, y stop por presupuesto de
-  tiempo. Un presupuesto por llamada, no reintentos anidados por capa.
-  _(AWS Builders' Library, client-go, gRPC)_
+  tiempo. Un presupuesto por llamada, no reintentos anidados por capa. _(ref:
+  [exponential backoff and jitter de AWS](https://aws.amazon.com/blogs/architecture/exponential-backoff-and-jitter/),
+  [rate limiters de client-go](https://github.com/kubernetes/client-go/blob/master/util/workqueue/default_rate_limiters.go),
+  [deadlines de gRPC](https://grpc.io/docs/guides/deadlines/))_
 - **Fail-closed:** la rama por defecto de toda decisión de integridad o permisos
-  DENIEGA. _(RBAC de Kubernetes, `default allow := false` de Rego)_
+  DENIEGA. _(ref: [autorización RBAC de
+  Kubernetes](https://kubernetes.io/docs/reference/access-authn-authz/authorization/),
+  [`default allow := false` en
+  Rego](https://www.openpolicyagent.org/docs/policy-reference/keywords/default))_
 
 > Al aplicar cada punto, distinguí lo **gateable por linter/CI** (regla dura) de
 > lo que es **criterio de review** (juicio). Solo lo primero se puede prometer.
@@ -107,7 +117,8 @@ _(corpus: `refs/architecture`, techo de craft, consenso 2026-07-09)_
 
 #### TypeScript
 
-_(corpus: `refs/typescript/strict-loopholes.md`, destilado de tRPC y Nx)_
+_(práctica de proyectos con type-safety estricta, como
+[tRPC](https://github.com/trpc/trpc) y [Nx](https://github.com/nrwl/nx))_
 
 1. **`any` explícito es BLOCKER.** Si la estructura es genuinamente desconocida,
    el tipo correcto es `unknown` y se valida antes de operar.
@@ -118,19 +129,22 @@ _(corpus: `refs/typescript/strict-loopholes.md`, destilado de tRPC y Nx)_
    `if/else`) sobre un union cierra con una rama que asigna a `never` y lanza.
    Aplica a `AppEvent`, a los mensajes del worker y a `ExperienceKind`.
 4. **La strictness vive en UN solo `tsconfig.json`.** Un tsconfig hoja que
-   re-declara flags de strictness es drift. _(corpus: `refs/node-ts`, base
-   compartida de Backstage, Directus y n8n)_
+   re-declara flags de strictness es drift. _(ref: la base compartida de
+   [Backstage](https://github.com/backstage/backstage/blob/master/tsconfig.json) y
+   de [Directus](https://github.com/directus/tsconfig/blob/main/configs/base/tsconfig.json))_
 5. **El techo de strictness es el de Directus** para un repo de este tamaño:
    `exactOptionalPropertyTypes`, `noPropertyAccessFromIndexSignature`,
    `noImplicitOverride`, `noUncheckedIndexedAccess`, sin `allowUnreachableCode`
    ni `allowUnusedLabels`. Los cuatro primeros ya están puestos;
    `noUncheckedIndexedAccess` es deuda conocida (ver "Estado del retrofit").
-   _(corpus: `refs/node-ts`, divergencia D1: codebase chica nace con el techo)_
+   Un codebase chico nace con el techo puesto, no lo sube después. _(ref:
+   [tsconfig base de Directus](https://github.com/directus/tsconfig/blob/main/configs/base/tsconfig.json))_
 
 #### App Node/TS y CI
 
-_(corpus: `refs/node-ts/from-consensus-2026-07-16.md`, verificado contra
-Backstage, n8n y Directus)_
+_(ref: el [workflow de CI de Backstage](https://github.com/backstage/backstage/blob/master/.github/workflows/ci.yml),
+su [check de lockfile sin duplicados](https://github.com/backstage/backstage/blob/master/scripts/verify-lockfile-duplicates.js)
+y la [config de coverage de Vitest](https://vitest.dev/config/coverage))_
 
 6. **Typecheck es un gate de CI propio y bloqueante**, separado de lint y de
    build, sin `continue-on-error`.
@@ -145,13 +159,15 @@ Backstage, n8n y Directus)_
 11. **Coverage con umbral es un gate real o no existe.** El umbral vive en
     `vitest.config.ts` y `npm test` lo corre, así que CI lo enforca. Se sube
     como ratchet, nunca se baja para que pase un cambio.
-    _(honestidad del corpus: el ratchet de coverage es barra propia, no
-    consenso OSS; ninguno de los repos top del set gatea coverage)_
+    _(nota honesta: el ratchet de coverage es barra propia de este repo, no
+    consenso OSS; ninguno de los proyectos de referencia consultados gatea
+    coverage)_
 
 #### Workers y off-main-thread
 
-_(corpus: `refs/web-mdn/web-workers.md` sobre MDN, más la skill
-`off-main-thread`)_
+_(ref: MDN, [Web Workers API](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API),
+[Transferable objects](https://developer.mozilla.org/en-US/docs/Web/API/Web_Workers_API/Transferable_objects)
+y [Worker.terminate()](https://developer.mozilla.org/en-US/docs/Web/API/Worker/terminate))_
 
 12. **Mover trabajo a un worker no acelera el cómputo: libera el main thread.**
     Los claims de performance se redactan como responsividad (INP), no como
@@ -168,7 +184,9 @@ _(corpus: `refs/web-mdn/web-workers.md` sobre MDN, más la skill
 
 #### Render y Three.js
 
-_(corpus: `refs/creative/from-mrdoob-three.js.md`, saqueo de mrdoob/three.js)_
+_(ref: el código de [mrdoob/three.js](https://github.com/mrdoob/three.js):
+temporales de módulo reutilizados, build sin dependencias de runtime y
+tree-shaking)_
 
 16. **Cero allocation en el hot path.** Los temporales (`Vector3`, `Quaternion`,
     `Matrix4`) son singletons de módulo reutilizados por frame, no `new` por
@@ -179,12 +197,12 @@ _(corpus: `refs/creative/from-mrdoob-three.js.md`, saqueo de mrdoob/three.js)_
     crece, tiene que verse en un número.
 19. **`InstancedMesh.count` se ajusta al conteo real dibujado.** Pagar siempre
     el peor caso de instancias es la regresión típica del render instanciado.
-    _(skill `gpu-text-rendering`: una draw call, N celdas, hot path sin allocs)_
+    Una draw call para N instancias y un hot path sin allocs.
 
 #### Inferencia y MediaPipe
 
-_(corpus: `refs/creative/from-google-ai-edge-mediapipe.md`, saqueo de
-google-ai-edge/mediapipe)_
+_(ref: el código de las tasks de visión web de
+[google-ai-edge/mediapipe](https://github.com/google-ai-edge/mediapipe))_
 
 20. **La detección de capacidades trata a WebKit como caso aparte.**
     "OffscreenCanvas existe" no implica "el delegate GPU sirve": Safari soporta
@@ -198,23 +216,28 @@ google-ai-edge/mediapipe)_
 23. **Errores accionables que nombran el campo exacto a cambiar**, al estilo de
     los guards de running-mode de MediaPipe.
 24. **Gobernanza de PRs explícita** cuando la superficie es grande: el README
-    dice qué clase de cambios se aceptan. _(mismo saqueo, `CONTRIBUTING.md`)_
+    dice qué clase de cambios se aceptan. _(ref: el
+    [`CONTRIBUTING.md` de MediaPipe](https://github.com/google-ai-edge/mediapipe/blob/master/CONTRIBUTING.md))_
 
 #### UI viva y usable
 
-_(corpus: `refs/creative/design-exemplars`: G1-G11 del saqueo de neal.fun,
-G12-G19 anclados en WCAG 2.2, Nielsen Norman Group y Laws of UX)_
+_(refs: [WCAG 2.2](https://www.w3.org/TR/WCAG22/), las [heurísticas de
+usabilidad de Nielsen Norman Group](https://www.nngroup.com/articles/ten-usability-heuristics/)
+y el [umbral de Doherty](https://lawsofux.com/doherty-threshold/) de Laws of UX;
+la idea de "UI viva" está inspirada en los experimentos de [neal.fun](https://neal.fun))_
 
-25. **Nada popea** (G2): todo elemento que entra o sale tiene transición >=150ms.
-26. **Ack instantáneo** (G6, G12): el primer frame post-interacción ya muestra
-    cambio; si algo va a tardar más de 400ms, hay indicador de progreso.
-27. **`prefers-reduced-motion` cubre TODO el motion** (G7), no un subconjunto.
-28. **Legibilidad primero** (G9, G19): sin scroll horizontal parásito, sin texto
-    cortado, sin colisiones. La verificación es numérica
-    (`getBoundingClientRect()` contra TODOS los vecinos), no a ojo.
-29. **Targets >=24x24 px CSS** (G13) y contraste de texto >=4.5:1 (G14).
-30. **Transiciones de 100 a 500ms** (G18): pasado eso el motion cruza de juice a
-    fricción. Vivo no es ruidoso (G8): el motion tiene propósito.
+25. **Nada popea:** todo elemento que entra o sale tiene transición >=150ms.
+26. **Ack instantáneo:** el primer frame post-interacción ya muestra cambio; si
+    algo va a tardar más de 400ms, hay indicador de progreso (visibilidad del
+    estado del sistema, umbral de Doherty).
+27. **`prefers-reduced-motion` cubre TODO el motion**, no un subconjunto.
+28. **Legibilidad primero:** sin scroll horizontal parásito, sin texto cortado,
+    sin colisiones. La verificación es numérica (`getBoundingClientRect()`
+    contra TODOS los vecinos), no a ojo.
+29. **Targets >=24x24 px CSS** (WCAG 2.5.8) y contraste de texto >=4.5:1
+    (WCAG 1.4.3).
+30. **Transiciones de 100 a 500ms:** pasado eso el motion cruza de juice a
+    fricción. Vivo no es ruidoso: el motion tiene propósito.
 
 #### Boundaries de arquitectura
 

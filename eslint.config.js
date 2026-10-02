@@ -22,7 +22,7 @@ export default tseslint.config(
     },
   },
   // Invariante de arquitectura como gate, no como convención (ver la sección
-  // "Estándar nivel mundial" del CLAUDE.md). La flecha de dependencias apunta a
+  // "Barra de calidad" del CLAUDE.md). La flecha de dependencias apunta a
   // `src/domain`: los shells (ui, render, inference, camera) dependen del dominio
   // puro y nunca al revés. El estándar que copiamos: en un repo de referencia el
   // boundary es un hecho chequeado por CI (allowlist default-deny, estilo
