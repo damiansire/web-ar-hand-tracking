@@ -305,7 +305,10 @@ async function main() {
   ];
 
   const conditions = [
-    { name: "gate-abierto (Chromium normal, la app elige delegate)", spoofUserAgent: null },
+    {
+      name: "gate-abierto (Chromium normal, la app elige delegate)",
+      spoofUserAgent: null,
+    },
     {
       name: "cpu-forzado (UA Safari 16, WebKit < 17)",
       spoofUserAgent: WEBKIT16_UA,

@@ -41,10 +41,10 @@ aísla, corre en el main thread.
 
 ## Resultados
 
-| Condición | Delegate real | FPS (EMA final) | FPS mínimo | Latencia media (ms) | Latencia p95 (ms) | Muestras |
-| --- | --- | --- | --- | --- | --- | --- |
-| gate-abierto (Chromium normal, la app elige delegate) | CPU | 31.1 | 23.0 | — | — | 0 muestras |
-| cpu-forzado (UA Safari 16, WebKit < 17) | CPU | 27.4 | 24.3 | — | — | 0 muestras |
+| Condición                                             | Delegate real | FPS (EMA final) | FPS mínimo | Latencia media (ms) | Latencia p95 (ms) | Muestras   |
+| ----------------------------------------------------- | ------------- | --------------- | ---------- | ------------------- | ----------------- | ---------- |
+| gate-abierto (Chromium normal, la app elige delegate) | CPU           | 31.1            | 23.0       | —                   | —                 | 0 muestras |
+| cpu-forzado (UA Safari 16, WebKit < 17)               | CPU           | 27.4            | 24.3       | —                   | —                 | 0 muestras |
 
 ## Caveats
 
